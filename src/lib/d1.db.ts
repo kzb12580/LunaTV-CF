@@ -553,4 +553,27 @@ export class D1Storage implements IStorage {
       throw err;
     }
   }
+
+  // ---------- 数据清理 ----------
+  async clearAllData(): Promise<void> {
+    try {
+      const db = await this.getDatabase();
+      
+      // 获取所有用户
+      const users = await this.getAllUsers();
+      
+      // 删除所有用户数据
+      for (const username of users) {
+        await this.deleteUser(username);
+      }
+      
+      // 删除管理员配置
+      await db.prepare('DELETE FROM admin_config').run();
+      
+      console.log('All data cleared');
+    } catch (err) {
+      console.error('Failed to clear all data:', err);
+      throw err;
+    }
+  }
 }
