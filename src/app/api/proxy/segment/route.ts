@@ -125,8 +125,8 @@ function createVideoResponse(data: ArrayBuffer): Response {
   return new Response(data, { headers });
 }
 
-// 预加载函数（可在客户端调用）
-export async function preloadSegment(url: string, source: string): Promise<void> {
+// 预加载函数（内部使用）
+async function preloadSegment(url: string, source: string): Promise<void> {
   const key = url;
   if (globalThis.preloadQueue?.has(key)) return;
   
