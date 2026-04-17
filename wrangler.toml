@@ -8,8 +8,8 @@ bucket = ".vercel/output/static"
 [[d1_databases]]
 binding = "DB"
 database_name = "lunatv"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "7e011ef1-e7fe-428f-81dc-630c3441904a"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "aea7dbd0f3a24b01a5f9de00f91ff4d7"
