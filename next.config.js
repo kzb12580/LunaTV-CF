@@ -9,7 +9,7 @@ const nextConfig = {
   reactStrictMode: false,
   swcMinify: false,
   experimental: {
-    runtime: 'edge',
+    instrumentationHook: process.env.NODE_ENV === 'production',
   },
   images: {
     unoptimized: true,
