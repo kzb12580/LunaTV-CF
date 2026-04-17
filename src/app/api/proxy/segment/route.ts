@@ -137,8 +137,8 @@ async function preloadSegment(url: string, source: string): Promise<void> {
   globalThis.preloadQueue?.set(key, promise);
   
   // 限制队列大小
-  if (globalThis.preloadQueue.size > 10) {
+  if (globalThis.preloadQueue && globalThis.preloadQueue.size > 10) {
     const firstKey = globalThis.preloadQueue.keys().next().value;
-    globalThis.preloadQueue.delete(firstKey);
+    if (firstKey) globalThis.preloadQueue.delete(firstKey);
   }
 }
