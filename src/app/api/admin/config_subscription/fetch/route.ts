@@ -46,8 +46,8 @@ export async function POST(request: NextRequest) {
       const decodedBytes = bs58.decode(configContent);
       decodedContent = new TextDecoder().decode(decodedBytes);
     } catch (decodeError) {
-      console.warn('Base58 解码失败', decodeError);
-      throw decodeError;
+      console.warn('Base58 解码失败，当作普通 JSON 使用', decodeError);
+      decodedContent = configContent;
     }
 
     return NextResponse.json({
