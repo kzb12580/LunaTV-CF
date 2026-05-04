@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 function getDoubanImageProxyConfig(): {
   proxyType:
   | 'server'
-  | 'cmliussss-cdn-tencent'
+  | 'cmliussss-cdn-ali'
   | 'cmliussss-cdn-ali'
   | 'custom';
   proxyUrl: string;
@@ -13,7 +13,7 @@ function getDoubanImageProxyConfig(): {
   let doubanImageProxyType =
     localStorage.getItem('doubanImageProxyType') ||
     (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE ||
-    'cmliussss-cdn-tencent';
+    'cmliussss-cdn-ali';
   // 兼容历史数据：直连和豆瓣官方精品 CDN 统一使用服务器代理
   if (doubanImageProxyType === 'direct' || doubanImageProxyType === 'img3') {
     doubanImageProxyType = 'server';
@@ -43,10 +43,10 @@ export function processImageUrl(originalUrl: string): string {
   switch (proxyType) {
     case 'server':
       return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-    case 'cmliussss-cdn-tencent':
+    case 'cmliussss-cdn-ali':
       return originalUrl.replace(
         /img\d+\.doubanio\.com/g,
-        'img.doubanio.cmliussss.net'
+        'img.doubanio.cmliussss.com'
       );
     case 'cmliussss-cdn-ali':
       return originalUrl.replace(

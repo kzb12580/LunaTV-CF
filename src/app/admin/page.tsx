@@ -3388,9 +3388,9 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
     Announcement: '',
     SearchDownstreamMaxPage: 1,
     SiteInterfaceCacheTime: 7200,
-    DoubanProxyType: 'cmliussss-cdn-tencent',
+    DoubanProxyType: 'cmliussss-cdn-ali',
     DoubanProxy: '',
-    DoubanImageProxyType: 'cmliussss-cdn-tencent',
+    DoubanImageProxyType: 'cmliussss-cdn-ali',
     DoubanImageProxy: '',
     DisableYellowFilter: false,
     FluidSearch: true,
@@ -3407,7 +3407,7 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
     { value: 'direct', label: '直连（服务器直接请求豆瓣）' },
     { value: 'cors-proxy-zwei', label: 'Cors Proxy By Zwei' },
     {
-      value: 'cmliussss-cdn-tencent',
+      value: 'cmliussss-cdn-ali',
       label: '豆瓣 CDN By CMLiussss（腾讯云）',
     },
     { value: 'cmliussss-cdn-ali', label: '豆瓣 CDN By CMLiussss（阿里云）' },
@@ -3418,7 +3418,7 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
   const doubanImageProxyTypeOptions = [
     { value: 'server', label: '服务器代理（由服务器代理请求豆瓣）' },
     {
-      value: 'cmliussss-cdn-tencent',
+      value: 'cmliussss-cdn-ali',
       label: '豆瓣 CDN By CMLiussss（腾讯云）',
     },
     { value: 'cmliussss-cdn-ali', label: '豆瓣 CDN By CMLiussss（阿里云）' },
@@ -3433,7 +3433,7 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
           text: 'Thanks to @Zwei',
           url: 'https://github.com/bestzwei',
         };
-      case 'cmliussss-cdn-tencent':
+      case 'cmliussss-cdn-ali':
       case 'cmliussss-cdn-ali':
         return {
           text: 'Thanks to @CMLiussss',
@@ -3448,12 +3448,12 @@ const SiteConfigComponent = ({ config, refreshConfig }: { config: AdminConfig | 
     if (config?.SiteConfig) {
       setSiteSettings({
         ...config.SiteConfig,
-        DoubanProxyType: config.SiteConfig.DoubanProxyType || 'cmliussss-cdn-tencent',
+        DoubanProxyType: config.SiteConfig.DoubanProxyType || 'cmliussss-cdn-ali',
         DoubanProxy: config.SiteConfig.DoubanProxy || '',
         DoubanImageProxyType:
           (config.SiteConfig.DoubanImageProxyType === 'direct' || config.SiteConfig.DoubanImageProxyType === 'img3')
             ? 'server'
-            : (config.SiteConfig.DoubanImageProxyType || 'cmliussss-cdn-tencent'),
+            : (config.SiteConfig.DoubanImageProxyType || 'cmliussss-cdn-ali'),
         DoubanImageProxy: config.SiteConfig.DoubanImageProxy || '',
         DisableYellowFilter: config.SiteConfig.DisableYellowFilter || false,
         FluidSearch: config.SiteConfig.FluidSearch || true,

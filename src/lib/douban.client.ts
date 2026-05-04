@@ -96,7 +96,7 @@ function getDoubanProxyConfig(): {
   proxyType:
   | 'direct'
   | 'cors-proxy-zwei'
-  | 'cmliussss-cdn-tencent'
+  | 'cmliussss-cdn-ali'
   | 'cmliussss-cdn-ali'
   | 'cors-anywhere'
   | 'custom';
@@ -145,7 +145,7 @@ export async function fetchDoubanCategories(
   }
 
   const target = useTencentCDN
-    ? `https://m.douban.cmliussss.net/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
+    ? `https://m.douban.cmliussss.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
     : useAliCDN
       ? `https://m.douban.cmliussss.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`
       : `https://m.douban.com/rexxar/api/v2/subject/recent_hot/${kind}?start=${pageStart}&limit=${pageLimit}&category=${category}&type=${type}`;
@@ -200,7 +200,7 @@ export async function getDoubanCategories(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanCategories(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-tencent':
+    case 'cmliussss-cdn-ali':
       return fetchDoubanCategories(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanCategories(params, '', false, true);
@@ -233,7 +233,7 @@ export async function getDoubanList(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanList(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-tencent':
+    case 'cmliussss-cdn-ali':
       return fetchDoubanList(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanList(params, '', false, true);
@@ -277,7 +277,7 @@ export async function fetchDoubanList(
   }
 
   const target = useTencentCDN
-    ? `https://movie.douban.cmliussss.net/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
+    ? `https://movie.douban.cmliussss.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
     : useAliCDN
       ? `https://movie.douban.cmliussss.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`
       : `https://movie.douban.com/j/search_subjects?type=${type}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
@@ -353,7 +353,7 @@ export async function getDoubanRecommends(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanRecommends(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-tencent':
+    case 'cmliussss-cdn-ali':
       return fetchDoubanRecommends(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanRecommends(params, '', false, true);
@@ -430,7 +430,7 @@ async function fetchDoubanRecommends(
   }
 
   const baseUrl = useTencentCDN
-    ? `https://m.douban.cmliussss.net/rexxar/api/v2/${kind}/recommend`
+    ? `https://m.douban.cmliussss.com/rexxar/api/v2/${kind}/recommend`
     : useAliCDN
       ? `https://m.douban.cmliussss.com/rexxar/api/v2/${kind}/recommend`
       : `https://m.douban.com/rexxar/api/v2/${kind}/recommend`;
