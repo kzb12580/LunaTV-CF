@@ -1,6 +1,6 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { getConfig } from "@/lib/config";
+import { getCachedUA } from "@/lib/config";
 import { getBaseUrl, resolveUrl } from "@/lib/live";
 
 export const runtime = 'edge';
@@ -15,13 +15,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
   }
 
-  const config = await getConfig();
-  const liveSource = config.LiveConfig?.find((s: any) => s.key === source);
-  if (!liveSource) {
-    return NextResponse.json({ error: 'Source not found' }, { status: 404 });
-  }
-
-  const ua = liveSource.ua || 'AptvPlayer/1.4.10';
+  // 使用缓存的 UA，不查 D1
+  const ua = getCachedUA(source || undefined);
   let response: Response | null = null;
   let responseUsed = false;
 

@@ -7,7 +7,7 @@ const nextConfig = {
     dirs: ['src'],
   },
   reactStrictMode: false,
-  swcMinify: false,
+  swcMinify: true,
   experimental: {
     instrumentationHook: process.env.NODE_ENV === 'production',
   },
@@ -41,11 +41,4 @@ const nextConfig = {
   },
 };
 
-const withPWA = require('next-pwa')({
-  dest: 'public',
-  disable: true, // Cloudflare 不需要 PWA
-  register: true,
-  skipWaiting: true,
-});
-
-module.exports = withPWA(nextConfig);
+module.exports = nextConfig;

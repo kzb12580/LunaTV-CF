@@ -13,11 +13,22 @@ interface KVNamespace {
   }>;
 }
 
-// 获取 KV 实例
+// 获取 KV 实例 — 使用 getRequestContext() 获取 CF binding
+let _cachedKV: KVNamespace | null = null;
+let _kvResolved = false;
+
 function getKV(): KVNamespace | null {
+  if (_kvResolved) return _cachedKV;
   try {
-    return (process.env as any).KV as KVNamespace;
+    // @cloudflare/next-on-pages 在 edge runtime 提供 getRequestContext
+    // 动态 import 避免在非 CF 环境报错
+    const { getRequestContext } = require('@cloudflare/next-on-pages');
+    const ctx = getRequestContext();
+    _cachedKV = (ctx?.env?.KV as KVNamespace) || null;
+    _kvResolved = true;
+    return _cachedKV;
   } catch {
+    _kvResolved = true;
     return null;
   }
 }
@@ -44,7 +55,7 @@ export class KVCache {
     this.enabled = !!this.kv;
     
     if (this.enabled) {
-      console.log('KV Cache enabled');
+      // KV Cache enabled (silenced for edge performance)
     }
   }
 
@@ -91,11 +102,11 @@ export class KVCache {
 
   // 搜索结果缓存
   async getSearchResult(keyword: string, source: string): Promise<any | null> {
-    return this.get(`${SEARCH_PREFIX}${source}:${Buffer.from(keyword).toString('base64')}`);
+    return this.get(`${SEARCH_PREFIX}${source}:${btoa(keyword)}`);
   }
 
   async setSearchResult(keyword: string, source: string, data: any): Promise<void> {
-    return this.set(`${SEARCH_PREFIX}${source}:${Buffer.from(keyword).toString('base64')}`, data, SEARCH_TTL);
+    return this.set(`${SEARCH_PREFIX}${source}:${btoa(keyword)}`, data, SEARCH_TTL);
   }
 
   // 豆瓣数据缓存

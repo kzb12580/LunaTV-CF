@@ -56,6 +56,10 @@ export const API_CONFIG = {
 // 在模块加载时根据环境决定配置来源
 let cachedConfig: AdminConfig;
 
+// KV 缓存 key
+const CONFIG_KV_KEY = 'app:config';
+const CONFIG_KV_TTL = 3600; // 1小时
+
 
 // 从配置文件补充管理员配置
 export function refineConfig(adminConfig: AdminConfig): AdminConfig {
@@ -290,13 +294,38 @@ async function getInitConfig(configFile: string, subConfig: {
   return adminConfig;
 }
 
+// 轻量获取 UA 配置（proxy 路由专用，不查 D1）
+export function getCachedUA(liveSourceKey?: string): string {
+  if (cachedConfig && liveSourceKey) {
+    const src = cachedConfig.LiveConfig?.find((s: any) => s.key === liveSourceKey);
+    if (src?.ua) return src.ua;
+  }
+  return 'AptvPlayer/1.4.10';
+}
+
 export async function getConfig(): Promise<AdminConfig> {
-  // 直接使用内存缓存
+  // L1: 内存缓存（同 isolate 内命中）
   if (cachedConfig) {
     return cachedConfig;
   }
 
-  // 读 db
+  // L2: KV 缓存（跨 isolate 命中，~10ms）
+  try {
+    const { getRequestContext } = require('@cloudflare/next-on-pages');
+    const ctx = getRequestContext();
+    const kv = ctx?.env?.KV as any;
+    if (kv) {
+      const kvCached = await kv.get(CONFIG_KV_KEY, { type: 'json' });
+      if (kvCached) {
+        cachedConfig = kvCached as AdminConfig;
+        return cachedConfig;
+      }
+    }
+  } catch {
+    // 非 CF 环境或 KV 不可用，跳过
+  }
+
+  // L3: D1 数据库（~50-100ms）
   let adminConfig: AdminConfig | null = null;
   try {
     adminConfig = await db.getAdminConfig();
@@ -310,7 +339,26 @@ export async function getConfig(): Promise<AdminConfig> {
   }
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
-  db.saveAdminConfig(cachedConfig);
+
+  // 写回 D1（用 waitUntil 确保不丢失）
+  try {
+    const { getRequestContext } = require('@cloudflare/next-on-pages');
+    const ctx = getRequestContext();
+    if (ctx?.waitUntil) {
+      ctx.waitUntil(db.saveAdminConfig(cachedConfig));
+    } else {
+      db.saveAdminConfig(cachedConfig);
+    }
+    // 写入 KV 缓存
+    const kv = ctx?.env?.KV as any;
+    if (kv) {
+      ctx.waitUntil(kv.put(CONFIG_KV_KEY, JSON.stringify(cachedConfig), { expirationTtl: CONFIG_KV_TTL }));
+    }
+  } catch {
+    // 非 CF 环境，直接写
+    db.saveAdminConfig(cachedConfig);
+  }
+
   return cachedConfig;
 }
 
