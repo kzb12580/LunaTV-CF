@@ -79,7 +79,7 @@ export const UserMenu: React.FC = () => {
     { value: 'direct', label: '直连（服务器直接请求豆瓣）' },
     { value: 'cors-proxy-zwei', label: 'Cors Proxy By Zwei' },
     {
-      value: 'cmliussss-cdn-ali',
+      value: 'cmliussss-cdn-tx',
       label: '豆瓣 CDN By CMLiussss（腾讯云）',
     },
     { value: 'cmliussss-cdn-ali', label: '豆瓣 CDN By CMLiussss（阿里云）' },
@@ -90,7 +90,7 @@ export const UserMenu: React.FC = () => {
   const doubanImageProxyTypeOptions = [
     { value: 'server', label: '服务器代理（由服务器代理请求豆瓣）' },
     {
-      value: 'cmliussss-cdn-ali',
+      value: 'cmliussss-cdn-tx',
       label: '豆瓣 CDN By CMLiussss（腾讯云）',
     },
     { value: 'cmliussss-cdn-ali', label: '豆瓣 CDN By CMLiussss（阿里云）' },
@@ -407,7 +407,7 @@ export const UserMenu: React.FC = () => {
           text: 'Thanks to @Zwei',
           url: 'https://github.com/bestzwei',
         };
-      case 'cmliussss-cdn-ali':
+      case 'cmliussss-cdn-tx':
       case 'cmliussss-cdn-ali':
         return {
           text: 'Thanks to @CMLiussss',

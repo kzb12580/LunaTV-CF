@@ -96,7 +96,7 @@ function getDoubanProxyConfig(): {
   proxyType:
   | 'direct'
   | 'cors-proxy-zwei'
-  | 'cmliussss-cdn-ali'
+  | 'cmliussss-cdn-tx'
   | 'cmliussss-cdn-ali'
   | 'cors-anywhere'
   | 'custom';
@@ -200,7 +200,7 @@ export async function getDoubanCategories(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanCategories(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-ali':
+    case 'cmliussss-cdn-tx':
       return fetchDoubanCategories(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanCategories(params, '', false, true);
@@ -233,7 +233,7 @@ export async function getDoubanList(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanList(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-ali':
+    case 'cmliussss-cdn-tx':
       return fetchDoubanList(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanList(params, '', false, true);
@@ -353,7 +353,7 @@ export async function getDoubanRecommends(
   switch (proxyType) {
     case 'cors-proxy-zwei':
       return fetchDoubanRecommends(params, 'https://ciao-cors.is-an.org/');
-    case 'cmliussss-cdn-ali':
+    case 'cmliussss-cdn-tx':
       return fetchDoubanRecommends(params, '', true, false);
     case 'cmliussss-cdn-ali':
       return fetchDoubanRecommends(params, '', false, true);
@@ -446,7 +446,6 @@ async function fetchDoubanRecommends(
     reqParams.append('sort', sort);
   }
   const target = `${baseUrl}?${reqParams.toString()}`;
-  console.log(target);
   try {
     const response = await fetchWithTimeout(
       target,

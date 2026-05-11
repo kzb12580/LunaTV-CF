@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 function getDoubanImageProxyConfig(): {
   proxyType:
   | 'server'
-  | 'cmliussss-cdn-ali'
+  | 'cmliussss-cdn-tx'
   | 'cmliussss-cdn-ali'
   | 'custom';
   proxyUrl: string;
@@ -43,7 +43,7 @@ export function processImageUrl(originalUrl: string): string {
   switch (proxyType) {
     case 'server':
       return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-    case 'cmliussss-cdn-ali':
+    case 'cmliussss-cdn-tx':
       return originalUrl.replace(
         /img\d+\.doubanio\.com/g,
         'img.doubanio.cmliussss.com'
