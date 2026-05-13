@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -8,7 +8,7 @@ import { db } from '@/lib/db';
 
 export const runtime = 'edge';
 
-// 支持的操作类�?
+// 支持的操作类型
 type Action = 'add' | 'disable' | 'enable' | 'delete' | 'sort';
 
 interface BaseBody {
@@ -42,10 +42,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
     }
 
-    // 获取配置与存�?
+    // 获取配置与存储
     const adminConfig = await getConfig();
 
-    // 权限与身份校�?
+    // 权限与身份校验
     if (username !== process.env.USERNAME) {
       const userEntry = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
@@ -89,14 +89,14 @@ export async function POST(request: NextRequest) {
         };
         if (!query || !type)
           return NextResponse.json(
-            { error: '缺少 query �?type 参数' },
+            { error: '缺少 query 或 type 参数' },
             { status: 400 }
           );
         const entry = adminConfig.CustomCategories.find(
           (c) => c.query === query && c.type === type
         );
         if (!entry)
-          return NextResponse.json({ error: '分类不存�? }, { status: 404 });
+          return NextResponse.json({ error: '分类不存在' }, { status: 404 });
         entry.disabled = true;
         break;
       }
@@ -107,14 +107,14 @@ export async function POST(request: NextRequest) {
         };
         if (!query || !type)
           return NextResponse.json(
-            { error: '缺少 query �?type 参数' },
+            { error: '缺少 query 或 type 参数' },
             { status: 400 }
           );
         const entry = adminConfig.CustomCategories.find(
           (c) => c.query === query && c.type === type
         );
         if (!entry)
-          return NextResponse.json({ error: '分类不存�? }, { status: 404 });
+          return NextResponse.json({ error: '分类不存在' }, { status: 404 });
         entry.disabled = false;
         break;
       }
@@ -125,18 +125,18 @@ export async function POST(request: NextRequest) {
         };
         if (!query || !type)
           return NextResponse.json(
-            { error: '缺少 query �?type 参数' },
+            { error: '缺少 query 或 type 参数' },
             { status: 400 }
           );
         const idx = adminConfig.CustomCategories.findIndex(
           (c) => c.query === query && c.type === type
         );
         if (idx === -1)
-          return NextResponse.json({ error: '分类不存�? }, { status: 404 });
+          return NextResponse.json({ error: '分类不存在' }, { status: 404 });
         const entry = adminConfig.CustomCategories[idx];
         if (entry.from === 'config') {
           return NextResponse.json(
-            { error: '该分类不可删�? },
+            { error: '该分类不可删除' },
             { status: 400 }
           );
         }
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
             map.delete(key);
           }
         });
-        // 未在 order 中的保持原顺�?
+        // 未在 order 中的保持原顺序
         adminConfig.CustomCategories.forEach((item) => {
           if (map.has(`${item.query}:${item.type}`)) newList.push(item);
         });

@@ -1,10 +1,9 @@
-/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
+﻿/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig, refineConfig, saveConfig } from '@/lib/config';
-import { db } from '@/lib/db';
 
 export const runtime = 'edge';
 
@@ -26,18 +25,18 @@ export async function POST(request: NextRequest) {
   const username = authInfo.username;
 
   try {
-    // 检查用户权�?
+    // 检查用户权限
     let adminConfig = await getConfig();
 
-    // 仅站长可以修改配置文�?
+    // 仅站长可以修改配置文件
     if (username !== process.env.USERNAME) {
       return NextResponse.json(
-        { error: '权限不足，只有站长可以修改配置文�? },
+        { error: '权限不足，只有站长可以修改配置文件' },
         { status: 401 }
       );
     }
 
-    // 获取请求�?
+    // 获取请求体
     const body = await request.json();
     const { configFile, subscriptionUrl, autoUpdate, lastCheckTime } = body;
 
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest) {
       JSON.parse(configFile);
     } catch (e) {
       return NextResponse.json(
-        { error: '配置文件格式错误，请检�?JSON 语法' },
+        { error: '配置文件格式错误，请检查 JSON 语法' },
         { status: 400 }
       );
     }

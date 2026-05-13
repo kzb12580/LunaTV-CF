@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
+﻿/* eslint-disable @typescript-eslint/no-explicit-any,no-console */
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
-      EnableWebLive,
     } = body as {
       SiteName: string;
       Announcement: string;
@@ -51,7 +50,6 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy: string;
       DisableYellowFilter: boolean;
       FluidSearch: boolean;
-      EnableWebLive: boolean;
     };
 
     // 参数校验
@@ -74,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // 权限校验
     if (username !== process.env.USERNAME) {
-      // 管理�?
+      // 管理员
       const user = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
       );
@@ -95,17 +93,16 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
-      EnableWebLive: EnableWebLive ?? false,
     };
 
-    // 写入数据�?
+    // 写入数据库
     await saveConfig(adminConfig);
 
     return NextResponse.json(
       { ok: true },
       {
         headers: {
-          'Cache-Control': 'no-store', // 不缓存结�?
+          'Cache-Control': 'no-store', // 不缓存结果
         },
       }
     );
