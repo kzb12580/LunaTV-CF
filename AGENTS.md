@@ -1,6 +1,6 @@
 # LunaTV-CF
 
-基于 Next.js 14 的影视聚合站，部署于 Cloudflare Pages（D1 + KV）。
+基于 [LunaTV](https://github.com/MoonTechLab/LunaTV) 修改的 Cloudflare Pages 适配版（D1 + KV），参考 [MoonTV](https://github.com/samqin123/MoonTV) 启发。
 
 ## 技术栈
 
