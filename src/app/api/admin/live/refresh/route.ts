@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig, saveConfig } from '@/lib/config';
+import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { refreshLiveChannels } from '@/lib/live';
 
@@ -11,12 +11,12 @@ export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
-    // 权限检�?
+    // 权限检查
     const authInfo = getAuthInfoFromCookie(request);
     const username = authInfo?.username;
     const config = await getConfig();
     if (username !== process.env.USERNAME) {
-      // 管理�?
+      // 管理员
       const user = config.UserConfig.Users.find(
         (u) => u.username === username
       );
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 并发刷新所有启用的直播�?
+    // 并发刷新所有启用的直播源
     const refreshPromises = (config.LiveConfig || [])
       .filter(liveInfo => !liveInfo.disabled)
       .map(async (liveInfo) => {
@@ -37,18 +37,18 @@ export async function POST(request: NextRequest) {
         }
       });
 
-    // 等待所有刷新任务完�?
+    // 等待所有刷新任务完成
     await Promise.all(refreshPromises);
 
     // 保存配置
-    await saveConfig(config);
+    await db.saveAdminConfig(config);
 
     return NextResponse.json({
       success: true,
-      message: '直播源刷新成�?,
+      message: '直播源刷新成功',
     });
   } catch (error) {
-    console.error('直播源刷新失�?', error);
+    console.error('直播源刷新失败:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : '刷新失败' },
       { status: 500 }
