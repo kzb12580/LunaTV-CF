@@ -4,7 +4,7 @@
 <img src="public/logo.png" alt="LunaTV Logo" width="120">
 </div>
 
-> 🎬 **LunaTV-CF** 是 LunaTV 的 Cloudflare Pages 适配版本，支持 D1 数据库和 KV 缓存。
+> 🎬 **LunaTV-CF** — LunaTV 的 Cloudflare Pages 适配版，深度集成 D1 + KV，含安全加固与性能优化。
 
 <div align="center">
 
@@ -14,6 +14,9 @@
 ![License](https://img.shields.io/badge/License-CC--BY--NC--SA-green)
 
 </div>
+
+> 基于 [LunaTV](https://github.com/MoonTechLab/LunaTV) 修改，适配 Cloudflare Pages + D1 数据库 + KV 缓存。
+> 参考 [MoonTV](https://github.com/samqin123/MoonTV) 启发。
 
 ---
 
