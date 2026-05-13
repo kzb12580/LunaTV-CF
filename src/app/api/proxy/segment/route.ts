@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const kv = getKVBinding();
+    const kv = await getKVBinding();
     if (kv) {
       const cacheKey = `segment:${url}`;
       const cached = await kv.get(cacheKey, 'arrayBuffer');
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     if (isSmall) {
       const data = await response.arrayBuffer();
       try {
-        const kv = getKVBinding();
+        const kv = await getKVBinding();
         if (kv) {
           const cacheKey = `segment:${url}`;
           kv.put(cacheKey, data, { expirationTtl: CACHE_TTL }).catch(() => {});

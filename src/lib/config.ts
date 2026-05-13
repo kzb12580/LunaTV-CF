@@ -290,7 +290,7 @@ export async function getConfig(): Promise<AdminConfig> {
 
   // L2: KV 缓存（跨 isolate 命中，~10ms）
   try {
-    const kv = getKVBinding();
+    const kv = await getKVBinding();
     if (kv) {
       const kvCached = await kv.get(CONFIG_KV_KEY, { type: 'json' });
       if (kvCached) {
@@ -319,7 +319,7 @@ export async function getConfig(): Promise<AdminConfig> {
 
   // 写入 KV 缓存（不写回 D1 读路径，避免写放大）
   try {
-    const kv = getKVBinding();
+    const kv = await getKVBinding();
     if (kv) {
       kv.put(CONFIG_KV_KEY, JSON.stringify(cachedConfig), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
     }
@@ -335,7 +335,7 @@ export async function saveConfig(config: AdminConfig) {
   cachedConfig = config;
   await db.saveAdminConfig(config);
   try {
-    const kv = getKVBinding();
+    const kv = await getKVBinding();
     if (kv) {
       kv.put(CONFIG_KV_KEY, JSON.stringify(config), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
     }

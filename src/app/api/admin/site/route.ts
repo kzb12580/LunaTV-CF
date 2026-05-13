@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
+      EnableWebLive: false,
     };
 
     // 写入数据库
