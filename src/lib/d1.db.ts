@@ -280,7 +280,7 @@ export class D1Storage implements IStorage {
   async registerUser(userName: string, password: string): Promise<void> {
     try {
       const db = await this.getDatabase();
-      const hashed = hashPassword(password);
+      const hashed = await hashPassword(password);
       await db
         .prepare('INSERT INTO users (username, password) VALUES (?, ?)')
         .bind(userName, hashed)
@@ -301,11 +301,11 @@ export class D1Storage implements IStorage {
 
       if (!result) return false;
 
-      const ok = verifyPassword(password, result.password);
+      const ok = await verifyPassword(password, result.password);
       
       // 平滑迁移：明文密码自动升级为哈希
       if (ok && !isHashed(result.password)) {
-        const hashed = hashPassword(password);
+        const hashed = await hashPassword(password);
         await db
           .prepare('UPDATE users SET password = ? WHERE username = ?')
           .bind(hashed, userName)
@@ -337,7 +337,7 @@ export class D1Storage implements IStorage {
   async changePassword(userName: string, newPassword: string): Promise<void> {
     try {
       const db = await this.getDatabase();
-      const hashed = hashPassword(newPassword);
+      const hashed = await hashPassword(newPassword);
       await db
         .prepare('UPDATE users SET password = ? WHERE username = ?')
         .bind(hashed, userName)
