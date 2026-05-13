@@ -1,4 +1,4 @@
-﻿/* eslint-disable no-console */
+/* eslint-disable no-console */
 
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -11,12 +11,12 @@ export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
-    // 权限检�?
+    // 权限检�?
     const authInfo = getAuthInfoFromCookie(request);
     const username = authInfo?.username;
     const config = await getConfig();
     if (username !== process.env.USERNAME) {
-      // 管理�?
+      // 管理�?
       const user = config.UserConfig.Users.find(
         (u) => u.username === username
       );
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 并发刷新所有启用的直播�?
+    // 并发刷新所有启用的直播�?
     const refreshPromises = (config.LiveConfig || [])
       .filter(liveInfo => !liveInfo.disabled)
       .map(async (liveInfo) => {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
-    // 等待所有刷新任务完�?
+    // 等待所有刷新任务完�?
     await Promise.all(refreshPromises);
 
     // 保存配置
@@ -45,10 +45,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '直播源刷新成�?,
+      message: '直播源刷新成�?,
     });
   } catch (error) {
-    console.error('直播源刷新失�?', error);
+    console.error('直播源刷新失�?', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : '刷新失败' },
       { status: 500 }
