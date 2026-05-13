@@ -5,7 +5,8 @@ export async function getKVBinding(): Promise<KVNamespace | null> {
     const mod = await import('@cloudflare/next-on-pages');
     if (mod && typeof mod.getRequestContext === 'function') {
       const ctx = mod.getRequestContext();
-      if (ctx?.env?.KV) return ctx.env.KV as KVNamespace;
+      const env = (ctx as any)?.env;
+      if (env?.KV) return env.KV as KVNamespace;
     }
   } catch {
   }
