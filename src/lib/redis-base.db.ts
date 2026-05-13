@@ -1,4 +1,4 @@
-﻿/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
+/* eslint-disable no-console, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
 import { createClient, RedisClientType } from 'redis';
 
@@ -6,10 +6,10 @@ import { AdminConfig } from './admin.types';
 import { hashPassword, isHashed, verifyPassword } from './password';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 
-// 鎼滅储鍘嗗彶鏈€澶ф潯鏁?
+// 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
 
-// 鏁版嵁绫诲瀷杞崲杈呭姪鍑芥暟
+// 数据类型转换辅助函数
 function ensureString(value: any): string {
   return String(value);
 }
@@ -18,13 +18,13 @@ function ensureStringArray(value: any[]): string[] {
   return value.map((item) => String(item));
 }
 
-// 杩炴帴閰嶇疆鎺ュ彛
+// 连接配置接口
 export interface RedisConnectionConfig {
   url: string;
-  clientName: string; // 鐢ㄤ簬鏃ュ織鏄剧ず锛屽 "Redis" 鎴?"Pika"
+  clientName: string; // 用于日志显示，如 "Redis" 或 "Pika"
 }
 
-// 娣诲姞Redis鎿嶄綔閲嶈瘯鍖呰鍣?
+// 添加Redis操作重试包装器
 function createRetryWrapper(clientName: string, getClient: () => RedisClientType) {
   return async function withRetry<T>(
     operation: () => Promise<T>,
@@ -48,10 +48,10 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
           );
           console.error('Error:', err.message);
 
-          // 绛夊緟涓€娈垫椂闂村悗閲嶈瘯
+          // 等待一段时间后重试
           await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
 
-          // 灏濊瘯閲嶆柊杩炴帴
+          // 尝试重新连接
           try {
             const client = getClient();
             if (!client.isOpen) {
@@ -72,7 +72,7 @@ function createRetryWrapper(clientName: string, getClient: () => RedisClientType
   };
 }
 
-// 鍒涘缓瀹㈡埛绔殑宸ュ巶鍑芥暟
+// 创建客户端的工厂函数
 export function createRedisClient(config: RedisConnectionConfig, globalSymbol: symbol): RedisClientType {
   let client: RedisClientType | undefined = (global as any)[globalSymbol];
 
@@ -81,30 +81,30 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
       throw new Error(`${config.clientName}_URL env variable not set`);
     }
 
-    // 鍒涘缓瀹㈡埛绔厤缃?
+    // 创建客户端配置
     const clientConfig: any = {
       url: config.url,
       socket: {
-        // 閲嶈繛绛栫暐锛氭寚鏁伴€€閬匡紝鏈€澶?0绉?
+        // 重连策略：指数退避，最大30秒
         reconnectStrategy: (retries: number) => {
           console.log(`${config.clientName} reconnection attempt ${retries + 1}`);
           if (retries > 10) {
             console.error(`${config.clientName} max reconnection attempts exceeded`);
-            return false; // 鍋滄閲嶈繛
+            return false; // 停止重连
           }
-          return Math.min(1000 * Math.pow(2, retries), 30000); // 鎸囨暟閫€閬匡紝鏈€澶?0绉?
+          return Math.min(1000 * Math.pow(2, retries), 30000); // 指数退避，最大30秒
         },
-        connectTimeout: 10000, // 10绉掕繛鎺ヨ秴鏃?
-        // 璁剧疆no delay锛屽噺灏戝欢杩?
+        connectTimeout: 10000, // 10秒连接超时
+        // 设置no delay，减少延迟
         noDelay: true,
       },
-      // 娣诲姞鍏朵粬閰嶇疆
-      pingInterval: 30000, // 30绉抪ing涓€娆★紝淇濇寔杩炴帴娲昏穬
+      // 添加其他配置
+      pingInterval: 30000, // 30秒ping一次，保持连接活跃
     };
 
     client = createClient(clientConfig);
 
-    // 娣诲姞閿欒浜嬩欢鐩戝惉
+    // 添加错误事件监听
     client.on('error', (err) => {
       console.error(`${config.clientName} client error:`, err);
     });
@@ -121,7 +121,7 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
       console.log(`${config.clientName} ready`);
     });
 
-    // 鍒濆杩炴帴锛屽甫閲嶈瘯鏈哄埗
+    // 初始连接，带重试机制
     const connectWithRetry = async () => {
       try {
         await client!.connect();
@@ -141,7 +141,7 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
   return client;
 }
 
-// 鎶借薄鍩虹被锛屽寘鍚墍鏈夐€氱敤鐨凴edis鎿嶄綔閫昏緫
+// 抽象基类，包含所有通用的Redis操作逻辑
 export abstract class BaseRedisStorage implements IStorage {
   protected client: RedisClientType;
   protected withRetry: <T>(operation: () => Promise<T>, maxRetries?: number) => Promise<T>;
@@ -151,9 +151,9 @@ export abstract class BaseRedisStorage implements IStorage {
     this.withRetry = createRetryWrapper(config.clientName, () => this.client);
   }
 
-  // ---------- 鎾斁璁板綍 ----------
+  // ---------- 播放记录 ----------
   private prHashKey(user: string) {
-    return `u:${user}:pr`; // 涓€涓敤鎴风殑鎵€鏈夋挱鏀捐褰曞瓨鍦ㄤ竴涓?Hash 涓?
+    return `u:${user}:pr`; // 一个用户的所有播放记录存在一个 Hash 中
   }
 
   async getPlayRecord(
@@ -201,9 +201,9 @@ export abstract class BaseRedisStorage implements IStorage {
     await this.withRetry(() => this.client.del(this.prHashKey(userName)));
   }
 
-  // ---------- 鏀惰棌 ----------
+  // ---------- 收藏 ----------
   private favHashKey(user: string) {
-    return `u:${user}:fav`; // 涓€涓敤鎴风殑鎵€鏈夋敹钘忓瓨鍦ㄤ竴涓?Hash 涓?
+    return `u:${user}:fav`; // 一个用户的所有收藏存在一个 Hash 中
   }
 
   async getFavorite(userName: string, key: string): Promise<Favorite | null> {
@@ -246,7 +246,7 @@ export abstract class BaseRedisStorage implements IStorage {
     await this.withRetry(() => this.client.del(this.favHashKey(userName)));
   }
 
-  // ---------- 鐢ㄦ埛娉ㄥ唽 / 鐧诲綍 ----------
+  // ---------- 用户注册 / 登录 ----------
   private userPwdKey(user: string) {
     return `u:${user}:pwd`;
   }
@@ -254,7 +254,7 @@ export abstract class BaseRedisStorage implements IStorage {
   async registerUser(userName: string, password: string): Promise<void> {
     const hashed = await hashPassword(password);
     await this.withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
-    // 缁存姢鐢ㄦ埛闆嗗悎
+    // 维护用户集合
     await this.withRetry(() => this.client.sAdd(this.usersSetKey(), userName));
   }
 
@@ -265,7 +265,7 @@ export abstract class BaseRedisStorage implements IStorage {
     if (stored === null) return false;
     const storedStr = ensureString(stored);
     const ok = await verifyPassword(password, storedStr);
-    // 骞虫粦杩佺Щ锛氬鏋滄槸鏄庢枃瀵嗙爜涓旈獙璇侀€氳繃锛岃嚜鍔ㄥ崌绾т负鍔犵洂鍝堝笇
+    // 平滑迁移：如果是明文密码且验证通过，自动升级为加盐哈希
     if (ok && !isHashed(storedStr)) {
       const hashed = await hashPassword(password);
       await this.withRetry(() => this.client.set(this.userPwdKey(userName), hashed));
@@ -273,16 +273,16 @@ export abstract class BaseRedisStorage implements IStorage {
     return ok;
   }
 
-  // 妫€鏌ョ敤鎴锋槸鍚﹀瓨鍦?
+  // 检查用户是否存在
   async checkUserExist(userName: string): Promise<boolean> {
-    // 浣跨敤 EXISTS 鍒ゆ柇 key 鏄惁瀛樺湪
+    // 使用 EXISTS 判断 key 是否存在
     const exists = await this.withRetry(() =>
       this.client.exists(this.userPwdKey(userName))
     );
     return exists === 1;
   }
 
-  // 淇敼鐢ㄦ埛瀵嗙爜
+  // 修改用户密码
   async changePassword(userName: string, newPassword: string): Promise<void> {
     const hashed = await hashPassword(newPassword);
     await this.withRetry(() =>
@@ -290,28 +290,28 @@ export abstract class BaseRedisStorage implements IStorage {
     );
   }
 
-  // 鍒犻櫎鐢ㄦ埛鍙婂叾鎵€鏈夋暟鎹?
+  // 删除用户及其所有数据
   async deleteUser(userName: string): Promise<void> {
-    // 鍒犻櫎鐢ㄦ埛瀵嗙爜
+    // 删除用户密码
     await this.withRetry(() => this.client.del(this.userPwdKey(userName)));
 
-    // 浠庣敤鎴烽泦鍚堜腑绉婚櫎
+    // 从用户集合中移除
     await this.withRetry(() => this.client.sRem(this.usersSetKey(), userName));
 
-    // 鍒犻櫎鎼滅储鍘嗗彶
+    // 删除搜索历史
     await this.withRetry(() => this.client.del(this.shKey(userName)));
 
-    // 鍒犻櫎鎾斁璁板綍锛圚ash key 鐩存帴鍒犻櫎锛?
+    // 删除播放记录（Hash key 直接删除）
     await this.withRetry(() => this.client.del(this.prHashKey(userName)));
 
-    // 鍒犻櫎鏀惰棌澶癸紙Hash key 鐩存帴鍒犻櫎锛?
+    // 删除收藏夹（Hash key 直接删除）
     await this.withRetry(() => this.client.del(this.favHashKey(userName)));
 
-    // 鍒犻櫎璺宠繃鐗囧ご鐗囧熬閰嶇疆锛圚ash key 鐩存帴鍒犻櫎锛?
+    // 删除跳过片头片尾配置（Hash key 直接删除）
     await this.withRetry(() => this.client.del(this.skipHashKey(userName)));
   }
 
-  // ---------- 鎼滅储鍘嗗彶 ----------
+  // ---------- 搜索历史 ----------
   private shKey(user: string) {
     return `u:${user}:sh`; // u:username:sh
   }
@@ -320,17 +320,17 @@ export abstract class BaseRedisStorage implements IStorage {
     const result = await this.withRetry(() =>
       this.client.lRange(this.shKey(userName), 0, -1)
     );
-    // 纭繚杩斿洖鐨勯兘鏄瓧绗︿覆绫诲瀷
+    // 确保返回的都是字符串类型
     return ensureStringArray(result as any[]);
   }
 
   async addSearchHistory(userName: string, keyword: string): Promise<void> {
     const key = this.shKey(userName);
-    // 鍏堝幓閲?
+    // 先去重
     await this.withRetry(() => this.client.lRem(key, 0, ensureString(keyword)));
-    // 鎻掑叆鍒版渶鍓?
+    // 插入到最前
     await this.withRetry(() => this.client.lPush(key, ensureString(keyword)));
-    // 闄愬埗鏈€澶ч暱搴?
+    // 限制最大长度
     await this.withRetry(() => this.client.lTrim(key, 0, SEARCH_HISTORY_LIMIT - 1));
   }
 
@@ -343,7 +343,7 @@ export abstract class BaseRedisStorage implements IStorage {
     }
   }
 
-  // ---------- 鑾峰彇鍏ㄩ儴鐢ㄦ埛 ----------
+  // ---------- 获取全部用户 ----------
   private usersSetKey() {
     return 'sys:users';
   }
@@ -353,7 +353,7 @@ export abstract class BaseRedisStorage implements IStorage {
     return ensureStringArray(members as any[]);
   }
 
-  // ---------- 绠＄悊鍛橀厤缃?----------
+  // ---------- 管理员配置 ----------
   private adminConfigKey() {
     return 'admin:config';
   }
@@ -369,9 +369,9 @@ export abstract class BaseRedisStorage implements IStorage {
     );
   }
 
-  // ---------- 璺宠繃鐗囧ご鐗囧熬閰嶇疆 ----------
+  // ---------- 跳过片头片尾配置 ----------
   private skipHashKey(user: string) {
-    return `u:${user}:skip`; // 涓€涓敤鎴风殑鎵€鏈夎烦杩囬厤缃瓨鍦ㄤ竴涓?Hash 涓?
+    return `u:${user}:skip`; // 一个用户的所有跳过配置存在一个 Hash 中
   }
 
   private skipField(source: string, id: string) {
@@ -429,20 +429,20 @@ export abstract class BaseRedisStorage implements IStorage {
     return configs;
   }
 
-  // ---------- 鏁版嵁杩佺Щ锛氭棫鎵佸钩 key 鈫?Hash 缁撴瀯 ----------
+  // ---------- 数据迁移：旧扁平 key → Hash 结构 ----------
   private migrationKey() {
     return 'sys:migration:hash_v2';
   }
 
   async migrateData(): Promise<void> {
-    // 妫€鏌ユ槸鍚﹀凡杩佺Щ
+    // 检查是否已迁移
     const migrated = await this.withRetry(() => this.client.get(this.migrationKey()));
     if (migrated === 'done') return;
 
-    console.log('寮€濮嬫暟鎹縼绉伙細鎵佸钩 key 鈫?Hash 缁撴瀯...');
+    console.log('开始数据迁移：扁平 key → Hash 结构...');
 
     try {
-      // 杩佺Щ鎾斁璁板綍锛歶:*:pr:* 鈫?u:username:pr (Hash)
+      // 迁移播放记录：u:*:pr:* → u:username:pr (Hash)
       const prKeys = await this.withRetry(() => this.client.keys('u:*:pr:*'));
       if (prKeys.length > 0) {
         const oldPrKeys = prKeys.filter((k) => {
@@ -463,11 +463,11 @@ export abstract class BaseRedisStorage implements IStorage {
             );
           }
           await this.withRetry(() => this.client.del(oldPrKeys));
-          console.log(`杩佺Щ浜?${oldPrKeys.length} 鏉℃挱鏀捐褰昤);
+          console.log(`迁移了 ${oldPrKeys.length} 条播放记录`);
         }
       }
 
-      // 杩佺Щ鏀惰棌锛歶:*:fav:* 鈫?u:username:fav (Hash)
+      // 迁移收藏：u:*:fav:* → u:username:fav (Hash)
       const favKeys = await this.withRetry(() => this.client.keys('u:*:fav:*'));
       if (favKeys.length > 0) {
         const oldFavKeys = favKeys.filter((k) => {
@@ -488,11 +488,11 @@ export abstract class BaseRedisStorage implements IStorage {
             );
           }
           await this.withRetry(() => this.client.del(oldFavKeys));
-          console.log(`杩佺Щ浜?${oldFavKeys.length} 鏉℃敹钘廯);
+          console.log(`迁移了 ${oldFavKeys.length} 条收藏`);
         }
       }
 
-      // 杩佺Щ skipConfig锛歶:*:skip:* 鈫?u:username:skip (Hash)
+      // 迁移 skipConfig：u:*:skip:* → u:username:skip (Hash)
       const skipKeys = await this.withRetry(() => this.client.keys('u:*:skip:*'));
       if (skipKeys.length > 0) {
         const oldSkipKeys = skipKeys.filter((k) => {
@@ -513,11 +513,11 @@ export abstract class BaseRedisStorage implements IStorage {
             );
           }
           await this.withRetry(() => this.client.del(oldSkipKeys));
-          console.log(`杩佺Щ浜?${oldSkipKeys.length} 鏉¤烦杩囬厤缃甡);
+          console.log(`迁移了 ${oldSkipKeys.length} 条跳过配置`);
         }
       }
 
-      // 杩佺Щ鐢ㄦ埛鍒楄〃锛氫粠 KEYS u:*:pwd 鏋勫缓 sys:users Set
+      // 迁移用户列表：从 KEYS u:*:pwd 构建 sys:users Set
       const userSetExists = await this.withRetry(() => this.client.exists(this.usersSetKey()));
       if (!userSetExists) {
         const pwdKeys = await this.withRetry(() => this.client.keys('u:*:pwd'));
@@ -529,19 +529,19 @@ export abstract class BaseRedisStorage implements IStorage {
           .filter((u): u is string => typeof u === 'string');
         if (userNames.length > 0) {
           await this.withRetry(() => this.client.sAdd(this.usersSetKey(), userNames));
-          console.log(`杩佺Щ浜?${userNames.length} 涓敤鎴峰埌 Set`);
+          console.log(`迁移了 ${userNames.length} 个用户到 Set`);
         }
       }
 
-      // 鏍囪杩佺Щ瀹屾垚
+      // 标记迁移完成
       await this.withRetry(() => this.client.set(this.migrationKey(), 'done'));
-      console.log('鏁版嵁杩佺Щ瀹屾垚');
+      console.log('数据迁移完成');
     } catch (error) {
-      console.error('鏁版嵁杩佺Щ澶辫触:', error);
+      console.error('数据迁移失败:', error);
     }
   }
 
-  // ---------- 瀵嗙爜杩佺Щ锛氭槑鏂?鈫?鍔犵洂鍝堝笇 ----------
+  // ---------- 密码迁移：明文 → 加盐哈希 ----------
   private pwdMigrationKey() {
     return 'sys:migration:pwd_hash_v1';
   }
@@ -550,7 +550,7 @@ export abstract class BaseRedisStorage implements IStorage {
     const migrated = await this.withRetry(() => this.client.get(this.pwdMigrationKey()));
     if (migrated === 'done') return;
 
-    console.log('寮€濮嬪瘑鐮佽縼绉伙細鏄庢枃 鈫?鍔犵洂鍝堝笇...');
+    console.log('开始密码迁移：明文 → 加盐哈希...');
 
     try {
       const pwdKeys = await this.withRetry(() => this.client.keys('u:*:pwd'));
@@ -560,39 +560,39 @@ export abstract class BaseRedisStorage implements IStorage {
         const stored = await this.withRetry(() => this.client.get(key));
         if (stored === null) continue;
         const storedStr = ensureString(stored);
-        // 璺宠繃宸茬粡鏄搱甯屾牸寮忕殑
+        // 跳过已经是哈希格式的
         if (isHashed(storedStr)) continue;
-        // 灏嗘槑鏂囧瘑鐮佽浆涓哄姞鐩愬搱甯?
+        // 将明文密码转为加盐哈希
         const hashed = await hashPassword(storedStr);
         await this.withRetry(() => this.client.set(key, hashed));
         count++;
       }
 
       await this.withRetry(() => this.client.set(this.pwdMigrationKey(), 'done'));
-      console.log(`瀵嗙爜杩佺Щ瀹屾垚锛屽叡杩佺Щ ${count} 涓敤鎴穈);
+      console.log(`密码迁移完成，共迁移 ${count} 个用户`);
     } catch (error) {
-      console.error('瀵嗙爜杩佺Щ澶辫触:', error);
+      console.error('密码迁移失败:', error);
     }
   }
 
-  // 娓呯┖鎵€鏈夋暟鎹?
+  // 清空所有数据
   async clearAllData(): Promise<void> {
     try {
-      // 鑾峰彇鎵€鏈夌敤鎴?
+      // 获取所有用户
       const allUsers = await this.getAllUsers();
 
-      // 鍒犻櫎鎵€鏈夌敤鎴峰強鍏舵暟鎹?
+      // 删除所有用户及其数据
       for (const username of allUsers) {
         await this.deleteUser(username);
       }
 
-      // 鍒犻櫎绠＄悊鍛橀厤缃?
+      // 删除管理员配置
       await this.withRetry(() => this.client.del(this.adminConfigKey()));
 
-      console.log('鎵€鏈夋暟鎹凡娓呯┖');
+      console.log('所有数据已清空');
     } catch (error) {
-      console.error('娓呯┖鏁版嵁澶辫触:', error);
-      throw new Error('娓呯┖鏁版嵁澶辫触');
+      console.error('清空数据失败:', error);
+      throw new Error('清空数据失败');
     }
   }
 }
