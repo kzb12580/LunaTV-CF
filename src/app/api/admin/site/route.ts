@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getConfig, saveConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'edge';
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // 权限校验
     if (username !== process.env.USERNAME) {
-      // 管理员
+      // 管理�?
       const user = adminConfig.UserConfig.Users.find(
         (u) => u.username === username
       );
@@ -98,14 +98,14 @@ export async function POST(request: NextRequest) {
       EnableWebLive: EnableWebLive ?? false,
     };
 
-    // 写入数据库
-    await db.saveAdminConfig(adminConfig);
+    // 写入数据�?
+    await saveConfig(adminConfig);
 
     return NextResponse.json(
       { ok: true },
       {
         headers: {
-          'Cache-Control': 'no-store', // 不缓存结果
+          'Cache-Control': 'no-store', // 不缓存结�?
         },
       }
     );

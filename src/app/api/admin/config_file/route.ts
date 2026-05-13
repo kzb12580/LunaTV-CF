@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig, refineConfig } from '@/lib/config';
+import { getConfig, refineConfig, saveConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 export const runtime = 'edge';
@@ -26,18 +26,18 @@ export async function POST(request: NextRequest) {
   const username = authInfo.username;
 
   try {
-    // 检查用户权限
+    // 检查用户权�?
     let adminConfig = await getConfig();
 
-    // 仅站长可以修改配置文件
+    // 仅站长可以修改配置文�?
     if (username !== process.env.USERNAME) {
       return NextResponse.json(
-        { error: '权限不足，只有站长可以修改配置文件' },
+        { error: '权限不足，只有站长可以修改配置文�? },
         { status: 401 }
       );
     }
 
-    // 获取请求体
+    // 获取请求�?
     const body = await request.json();
     const { configFile, subscriptionUrl, autoUpdate, lastCheckTime } = body;
 
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
       JSON.parse(configFile);
     } catch (e) {
       return NextResponse.json(
-        { error: '配置文件格式错误，请检查 JSON 语法' },
+        { error: '配置文件格式错误，请检�?JSON 语法' },
         { status: 400 }
       );
     }
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     adminConfig = refineConfig(adminConfig);
     // 更新配置文件
-    await db.saveAdminConfig(adminConfig);
+    await saveConfig(adminConfig);
     return NextResponse.json({
       success: true,
       message: '配置文件更新成功',

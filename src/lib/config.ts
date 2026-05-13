@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
 
 import { db } from '@/lib/db';
+import { getKVBinding } from '@/lib/env';
 
 import { AdminConfig } from './admin.types';
 
@@ -58,7 +59,7 @@ let cachedConfig: AdminConfig;
 
 // KV 缓存 key
 const CONFIG_KV_KEY = 'app:config';
-const CONFIG_KV_TTL = 3600; // 1小时
+const CONFIG_KV_TTL = 60; // 60秒（config 变更后很快生效）
 
 
 // 从配置文件补充管理员配置
@@ -229,7 +230,6 @@ async function getInitConfig(configFile: string, subConfig: {
     },
     SourceConfig: [],
     CustomCategories: [],
-    LiveConfig: [],
   };
 
   // 补充用户信息
@@ -274,32 +274,11 @@ async function getInitConfig(configFile: string, subConfig: {
     });
   });
 
-  // 从配置文件中补充直播源信息
-  Object.entries(cfgFile.lives || []).forEach(([key, live]) => {
-    if (!adminConfig.LiveConfig) {
-      adminConfig.LiveConfig = [];
-    }
-    adminConfig.LiveConfig.push({
-      key,
-      name: live.name,
-      url: live.url,
-      ua: live.ua,
-      epg: live.epg,
-      channelNumber: 0,
-      from: 'config',
-      disabled: false,
-    });
-  });
-
   return adminConfig;
 }
 
 // 轻量获取 UA 配置（proxy 路由专用，不查 D1）
-export function getCachedUA(liveSourceKey?: string): string {
-  if (cachedConfig && liveSourceKey) {
-    const src = cachedConfig.LiveConfig?.find((s: any) => s.key === liveSourceKey);
-    if (src?.ua) return src.ua;
-  }
+export function getCachedUA(): string {
   return 'AptvPlayer/1.4.10';
 }
 
@@ -311,9 +290,7 @@ export async function getConfig(): Promise<AdminConfig> {
 
   // L2: KV 缓存（跨 isolate 命中，~10ms）
   try {
-    const { getRequestContext } = require('@cloudflare/next-on-pages');
-    const ctx = getRequestContext();
-    const kv = ctx?.env?.KV as any;
+    const kv = getKVBinding();
     if (kv) {
       const kvCached = await kv.get(CONFIG_KV_KEY, { type: 'json' });
       if (kvCached) {
@@ -322,7 +299,7 @@ export async function getConfig(): Promise<AdminConfig> {
       }
     }
   } catch {
-    // 非 CF 环境或 KV 不可用，跳过
+    // 非 CF 环境或 KV 不可用
   }
 
   // L3: D1 数据库（~50-100ms）
@@ -340,26 +317,29 @@ export async function getConfig(): Promise<AdminConfig> {
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
 
-  // 写回 D1（用 waitUntil 确保不丢失）
+  // 写入 KV 缓存（不写回 D1 读路径，避免写放大）
   try {
-    const { getRequestContext } = require('@cloudflare/next-on-pages');
-    const ctx = getRequestContext();
-    if (ctx?.waitUntil) {
-      ctx.waitUntil(db.saveAdminConfig(cachedConfig));
-    } else {
-      db.saveAdminConfig(cachedConfig);
-    }
-    // 写入 KV 缓存
-    const kv = ctx?.env?.KV as any;
+    const kv = getKVBinding();
     if (kv) {
-      ctx.waitUntil(kv.put(CONFIG_KV_KEY, JSON.stringify(cachedConfig), { expirationTtl: CONFIG_KV_TTL }));
+      kv.put(CONFIG_KV_KEY, JSON.stringify(cachedConfig), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
     }
   } catch {
-    // 非 CF 环境，直接写
-    db.saveAdminConfig(cachedConfig);
+    // 非 CF 环境
   }
 
   return cachedConfig;
+}
+
+// 显式保存配置（仅在管理员修改配置时调用）
+export async function saveConfig(config: AdminConfig) {
+  cachedConfig = config;
+  await db.saveAdminConfig(config);
+  try {
+    const kv = getKVBinding();
+    if (kv) {
+      kv.put(CONFIG_KV_KEY, JSON.stringify(config), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
+    }
+  } catch {}
 }
 
 export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
@@ -376,10 +356,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   if (!adminConfig.CustomCategories || !Array.isArray(adminConfig.CustomCategories)) {
     adminConfig.CustomCategories = [];
   }
-  if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
-    adminConfig.LiveConfig = [];
-  }
-
   // 站长变更自检
   const ownerUser = process.env.USERNAME;
 
@@ -430,16 +406,6 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     return true;
   });
 
-  // 直播源去重
-  const seenLiveKeys = new Set<string>();
-  adminConfig.LiveConfig = adminConfig.LiveConfig.filter((live) => {
-    if (seenLiveKeys.has(live.key)) {
-      return false;
-    }
-    seenLiveKeys.add(live.key);
-    return true;
-  });
-
   return adminConfig;
 }
 
@@ -454,8 +420,7 @@ export async function resetConfig() {
     originConfig = {} as AdminConfig;
   }
   const adminConfig = await getInitConfig(originConfig.ConfigFile, originConfig.ConfigSubscribtion);
-  cachedConfig = adminConfig;
-  await db.saveAdminConfig(adminConfig);
+  await saveConfig(adminConfig);
 
   return;
 }

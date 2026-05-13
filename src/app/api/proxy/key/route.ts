@@ -1,28 +1,28 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { NextResponse } from "next/server";
-import { getCachedUA } from "@/lib/config";
+import { validateUrl } from "@/lib/url-validate";
 
 export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
-  const source = searchParams.get('moontv-source');
   if (!url) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
   }
 
-  // 使用缓存的 UA，不查 D1
-  const ua = getCachedUA(source || undefined);
+  const decodedUrl = decodeURIComponent(url);
+  const validation = validateUrl(decodedUrl);
+  if (!validation.valid) {
+    return NextResponse.json({ error: validation.error }, { status: 403 });
+  }
 
   try {
-    const decodedUrl = decodeURIComponent(url);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(decodedUrl, {
-      headers: { 'User-Agent': ua },
+      headers: { 'User-Agent': 'AptvPlayer/1.4.10' },
       signal: controller.signal,
     });
 
@@ -36,8 +36,9 @@ export async function GET(request: Request) {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Cache-Control': 'public, max-age=3600',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        'CDN-Cache-Control': 'public, s-maxage=86400',
       },
     });
   } catch (error: any) {
