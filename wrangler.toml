@@ -9,7 +9,11 @@ bucket = ".vercel/output/static"
 binding = "DB"
 database_name = "lunatv"
 database_id = "7e011ef1-e7fe-428f-81dc-630c3441904a"
+# NOTE: In CI/CD, override via environment variable CF_D1_DATABASE_ID
+# or use `wrangler pages deploy` with --d1 binding flags
 
 [[kv_namespaces]]
 binding = "KV"
 id = "aea7dbd0f3a24b01a5f9de00f91ff4d7"
+# NOTE: In CI/CD, override via environment variable CF_KV_NAMESPACE_ID
+# or use `wrangler pages deploy` with --kv binding flags

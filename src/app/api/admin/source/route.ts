@@ -239,7 +239,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: '视频源管理操作失败',
-        details: (error as Error).message,
       },
       { status: 500 }
     );

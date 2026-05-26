@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
+import { isAllowedProxyUrl } from '@/lib/url-security';
 
 export const runtime = 'edge';
 
@@ -15,12 +16,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
   }
 
+  // SSRF 防护：验证 URL 是否在允许范围内
+  const decodedUrl = decodeURIComponent(imageUrl);
+  if (!isAllowedProxyUrl(decodedUrl, 'image')) {
+    return NextResponse.json({ error: 'URL not allowed' }, { status: 403 });
+  }
+
   const config = await getConfig();
   const liveSource = config.LiveConfig?.find((s: any) => s.key === source);
   const ua = liveSource?.ua || 'AptvPlayer/1.4.10';
 
   try {
-    const decodedUrl = decodeURIComponent(imageUrl);
     const imageResponse = await fetch(decodedUrl, {
       cache: 'no-cache',
       redirect: 'follow',

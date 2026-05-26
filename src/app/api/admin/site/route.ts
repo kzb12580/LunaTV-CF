@@ -112,7 +112,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: '更新站点配置失败',
-        details: (error as Error).message,
       },
       { status: 500 }
     );

@@ -1,33 +1,40 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
+
 import { NextResponse } from "next/server";
-import { validateUrl } from "@/lib/url-validate";
+
+import { getConfig } from "@/lib/config";
+import { isAllowedProxyUrl } from "@/lib/url-security";
 
 export const runtime = 'edge';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
+  const source = searchParams.get('moontv-source');
+  const origin = request.headers.get('origin') || '*';
   if (!url) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
   }
 
+  // SSRF 防护：验证 URL 是否在允许范围内
   const decodedUrl = decodeURIComponent(url);
-  const validation = validateUrl(decodedUrl);
-  if (!validation.valid) {
-    return NextResponse.json({ error: validation.error }, { status: 403 });
+  if (!isAllowedProxyUrl(decodedUrl, 'm3u8')) {
+    return NextResponse.json({ error: 'URL not allowed' }, { status: 403 });
   }
 
+  const config = await getConfig();
+  const liveSource = config.LiveConfig?.find((s: any) => s.key === source);
+  if (!liveSource) {
+    return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+  }
+  const ua = liveSource.ua || 'AptvPlayer/1.4.10';
+
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     const response = await fetch(decodedUrl, {
-      headers: { 'User-Agent': 'AptvPlayer/1.4.10' },
-      signal: controller.signal,
+      headers: {
+        'User-Agent': ua,
+      },
     });
-
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
       return NextResponse.json({ error: 'Failed to fetch key' }, { status: 500 });
     }
@@ -35,16 +42,12 @@ export async function GET(request: Request) {
     return new Response(keyData, {
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-        'CDN-Cache-Control': 'public, s-maxage=86400',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Cache-Control': 'public, max-age=3600'
       },
     });
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
-      return NextResponse.json({ error: 'Request timeout' }, { status: 504 });
-    }
+  } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch key' }, { status: 500 });
   }
 }

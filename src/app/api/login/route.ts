@@ -1,10 +1,20 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const runtime = 'edge';
+
+// 安全比较两个字符串（防止时序攻击）
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  return timingSafeEqual(bufA, bufB);
+}
 
 // 读取存储类型环境变量，默认 localstorage
 const STORAGE_TYPE =
@@ -68,6 +78,16 @@ async function generateAuthCookie(
 }
 
 export async function POST(req: NextRequest) {
+  // 登录速率限制：每个 IP 15分钟内最多5次尝试
+  const clientIp = getClientIp(req);
+  const { limited, retryAfter } = checkRateLimit(`login:${clientIp}`, 5, 15 * 60 * 1000);
+  if (limited) {
+    return NextResponse.json(
+      { error: `登录尝试过于频繁，请 ${retryAfter} 秒后重试` },
+      { status: 429 }
+    );
+  }
+
   try {
     // 本地 / localStorage 模式——仅校验固定密码
     if (STORAGE_TYPE === 'localstorage') {
@@ -81,9 +101,9 @@ export async function POST(req: NextRequest) {
         response.cookies.set('auth', '', {
           path: '/',
           expires: new Date(0),
-          sameSite: 'lax', // 改为 lax 以支持 PWA
-          httpOnly: false, // PWA 需要客户端可访问
-          secure: false, // 根据协议自动设置
+          sameSite: 'strict',
+          httpOnly: true,
+          secure: true,
         });
 
         return response;
@@ -94,7 +114,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
       }
 
-      if (password !== envPassword) {
+      if (!safeCompare(password, envPassword)) {
         return NextResponse.json(
           { ok: false, error: '密码错误' },
           { status: 401 }
@@ -110,14 +130,14 @@ export async function POST(req: NextRequest) {
         true
       ); // localstorage 模式包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+      expires.setDate(expires.getDate() + 3); // 3天过期
 
       response.cookies.set('auth', cookieValue, {
         path: '/',
         expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+        sameSite: 'strict',
+        httpOnly: true,
+        secure: true,
       });
 
       return response;
@@ -135,8 +155,8 @@ export async function POST(req: NextRequest) {
 
     // 可能是站长，直接读环境变量
     if (
-      username === process.env.USERNAME &&
-      password === process.env.PASSWORD
+      safeCompare(username, process.env.USERNAME || '') &&
+      safeCompare(password, process.env.PASSWORD || '')
     ) {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
@@ -147,18 +167,18 @@ export async function POST(req: NextRequest) {
         false
       ); // 数据库模式不包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+      expires.setDate(expires.getDate() + 3); // 3天过期
 
       response.cookies.set('auth', cookieValue, {
         path: '/',
         expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+        sameSite: 'strict',
+        httpOnly: true,
+        secure: true,
       });
 
       return response;
-    } else if (username === process.env.USERNAME) {
+    } else if (safeCompare(username, process.env.USERNAME || '')) {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 
@@ -187,14 +207,14 @@ export async function POST(req: NextRequest) {
         false
       ); // 数据库模式不包含 password
       const expires = new Date();
-      expires.setDate(expires.getDate() + 7); // 7天过期
+      expires.setDate(expires.getDate() + 3); // 3天过期
 
       response.cookies.set('auth', cookieValue, {
         path: '/',
         expires,
-        sameSite: 'lax', // 改为 lax 以支持 PWA
-        httpOnly: false, // PWA 需要客户端可访问
-        secure: false, // 根据协议自动设置
+        sameSite: 'strict',
+        httpOnly: true,
+        secure: true,
       });
 
       return response;

@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 
+import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -10,6 +11,14 @@ export async function middleware(request: NextRequest) {
   // 跳过不需要认证的路径
   if (shouldSkipAuth(pathname)) {
     return NextResponse.next();
+  }
+
+  // CSRF 保护：对 mutation 请求验证 Origin/Referer 头
+  const method = request.method.toUpperCase();
+  if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+    if (!verifyCsrf(request)) {
+      return new NextResponse('CSRF validation failed', { status: 403 });
+    }
   }
 
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
@@ -29,7 +38,12 @@ export async function middleware(request: NextRequest) {
 
   // localstorage模式：在middleware中完成验证
   if (storageType === 'localstorage') {
-    if (!authInfo.password || authInfo.password !== process.env.PASSWORD) {
+    if (!authInfo.password || !process.env.PASSWORD) {
+      return handleAuthFailure(request, pathname);
+    }
+    const storedPw = Buffer.from(process.env.PASSWORD, 'utf-8');
+    const inputPw = Buffer.from(authInfo.password, 'utf-8');
+    if (storedPw.length !== inputPw.length || !timingSafeEqual(storedPw, inputPw)) {
       return handleAuthFailure(request, pathname);
     }
     return NextResponse.next();
@@ -43,6 +57,14 @@ export async function middleware(request: NextRequest) {
 
   // 验证签名（如果存在）
   if (authInfo.signature) {
+    // 检查签名时间戳是否过期（24小时）
+    if (authInfo.timestamp) {
+      const maxAge = 24 * 60 * 60 * 1000; // 24 hours in ms
+      if (Date.now() - authInfo.timestamp > maxAge) {
+        return handleAuthFailure(request, pathname);
+      }
+    }
+
     const isValidSignature = await verifySignature(
       authInfo.username,
       authInfo.signature,
@@ -130,9 +152,39 @@ function shouldSkipAuth(pathname: string): boolean {
   return skipPaths.some((path) => pathname.startsWith(path));
 }
 
+// CSRF 验证：检查 Origin/Referer 头是否匹配
+function verifyCsrf(request: NextRequest): boolean {
+  const host = request.headers.get('host');
+  if (!host) {
+    return false;
+  }
+
+  const origin = request.headers.get('origin');
+  if (origin) {
+    try {
+      const originUrl = new URL(origin);
+      return originUrl.host === host;
+    } catch {
+      return false;
+    }
+  }
+
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer);
+      return refererUrl.host === host;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 // 配置middleware匹配规则
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|warning|api/login|api/register|api/logout|api/cron|api/server-config|api/auth-info).*)',
   ],
 };

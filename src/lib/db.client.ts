@@ -15,6 +15,7 @@
  */
 
 import { getAuthInfoFromBrowserCookie } from './auth';
+// TODO: 考虑将 getCurrentUsername 改为异步，优先使用 fetchAuthInfo()（支持 httpOnly cookie）
 import { SkipConfig } from './types';
 
 // 全局错误触发函数

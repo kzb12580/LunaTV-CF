@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     adminConfig.ConfigFile = configFile;
+    // TODO: ConfigSubscribtion 拼写错误(应为 Subscription)，保留原名兼容已存储数据
     if (!adminConfig.ConfigSubscribtion) {
       adminConfig.ConfigSubscribtion = {
         URL: '',
@@ -87,7 +88,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: '更新配置文件失败',
-        details: (error as Error).message,
       },
       { status: 500 }
     );

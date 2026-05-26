@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: '修改密码失败',
-        details: (error as Error).message,
       },
       { status: 500 }
     );

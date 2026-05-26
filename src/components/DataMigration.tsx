@@ -41,9 +41,10 @@ const AlertModal = ({
     if (isOpen) {
       setIsVisible(true);
       if (timer) {
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
           onClose();
         }, timer);
+        return () => clearTimeout(timerId);
       }
     } else {
       setIsVisible(false);

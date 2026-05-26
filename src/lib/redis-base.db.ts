@@ -9,6 +9,18 @@ import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
 
+// SCAN-based helper to avoid blocking KEYS command
+async function scanKeys(client: RedisClientType, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const reply = await client.scan(cursor, { MATCH: pattern, COUNT: 100 });
+    cursor = reply.cursor;
+    keys.push(...reply.keys);
+  } while (cursor !== 0);
+  return keys;
+}
+
 // 数据类型转换辅助函数
 function ensureString(value: any): string {
   return String(value);
@@ -133,7 +145,7 @@ export function createRedisClient(config: RedisConnectionConfig, globalSymbol: s
       }
     };
 
-    connectWithRetry();
+    connectWithRetry(); // fire-and-forget: redis client queues commands until connected
 
     (global as any)[globalSymbol] = client;
   }
@@ -443,7 +455,7 @@ export abstract class BaseRedisStorage implements IStorage {
 
     try {
       // 迁移播放记录：u:*:pr:* → u:username:pr (Hash)
-      const prKeys = await this.withRetry(() => this.client.keys('u:*:pr:*'));
+      const prKeys = await this.withRetry(() => scanKeys(this.client, 'u:*:pr:*'));
       if (prKeys.length > 0) {
         const oldPrKeys = prKeys.filter((k) => {
           const parts = k.split(':');
@@ -468,7 +480,7 @@ export abstract class BaseRedisStorage implements IStorage {
       }
 
       // 迁移收藏：u:*:fav:* → u:username:fav (Hash)
-      const favKeys = await this.withRetry(() => this.client.keys('u:*:fav:*'));
+      const favKeys = await this.withRetry(() => scanKeys(this.client, 'u:*:fav:*'));
       if (favKeys.length > 0) {
         const oldFavKeys = favKeys.filter((k) => {
           const parts = k.split(':');
@@ -493,7 +505,7 @@ export abstract class BaseRedisStorage implements IStorage {
       }
 
       // 迁移 skipConfig：u:*:skip:* → u:username:skip (Hash)
-      const skipKeys = await this.withRetry(() => this.client.keys('u:*:skip:*'));
+      const skipKeys = await this.withRetry(() => scanKeys(this.client, 'u:*:skip:*'));
       if (skipKeys.length > 0) {
         const oldSkipKeys = skipKeys.filter((k) => {
           const parts = k.split(':');
@@ -520,7 +532,7 @@ export abstract class BaseRedisStorage implements IStorage {
       // 迁移用户列表：从 KEYS u:*:pwd 构建 sys:users Set
       const userSetExists = await this.withRetry(() => this.client.exists(this.usersSetKey()));
       if (!userSetExists) {
-        const pwdKeys = await this.withRetry(() => this.client.keys('u:*:pwd'));
+        const pwdKeys = await this.withRetry(() => scanKeys(this.client, 'u:*:pwd'));
         const userNames = pwdKeys
           .map((k) => {
             const match = k.match(/^u:(.+?):pwd$/);
@@ -553,7 +565,7 @@ export abstract class BaseRedisStorage implements IStorage {
     console.log('开始密码迁移：明文 → 加盐哈希...');
 
     try {
-      const pwdKeys = await this.withRetry(() => this.client.keys('u:*:pwd'));
+      const pwdKeys = await this.withRetry(() => scanKeys(this.client, 'u:*:pwd'));
       let count = 0;
 
       for (const key of pwdKeys) {

@@ -1,102 +1,150 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { getKVBinding } from "@/lib/env";
-import { validateUrl } from "@/lib/url-validate";
+import { getConfig } from "@/lib/config";
+import { isAllowedProxyUrl } from "@/lib/url-security";
 
 export const runtime = 'edge';
 
-const CACHE_TTL = 3600;
-const MAX_CACHE_SIZE = 5 * 1024 * 1024;
+// KV 缓存配置
+const CACHE_TTL = 3600; // 1小时缓存
+const MAX_CACHE_SIZE = 5 * 1024 * 1024; // 最大缓存5MB的分片
+
+// 预加载队列（使用全局变量在请求间共享）
+declare global {
+  var preloadQueue: Map<string, Promise<ArrayBuffer>> | undefined;
+}
+
+if (typeof globalThis.preloadQueue === 'undefined') {
+  globalThis.preloadQueue = new Map();
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
+  const source = searchParams.get('moontv-source');
+  const preload = searchParams.get('preload') === 'true';
+  const origin = request.headers.get('origin') || '*';
+  
   if (!url) {
     return NextResponse.json({ error: 'Missing url' }, { status: 400 });
   }
 
+  // SSRF 防护：验证 URL 是否在允许范围内
   const decodedUrl = decodeURIComponent(url);
-  const validation = validateUrl(decodedUrl);
-  if (!validation.valid) {
-    return NextResponse.json({ error: validation.error }, { status: 403 });
+  if (!isAllowedProxyUrl(decodedUrl, 'm3u8')) {
+    return NextResponse.json({ error: 'URL not allowed' }, { status: 403 });
   }
 
+  const config = await getConfig();
+  const liveSource = config.LiveConfig?.find((s: any) => s.key === source);
+  if (!liveSource) {
+    return NextResponse.json({ error: 'Source not found' }, { status: 404 });
+  }
+
+  const ua = liveSource.ua || 'AptvPlayer/1.4.10';
+  
+  // 检查预加载队列
+  const preloadPromise = globalThis.preloadQueue?.get(decodedUrl);
+  if (preloadPromise) {
+    try {
+      const cachedData = await preloadPromise;
+      globalThis.preloadQueue?.delete(decodedUrl);
+      return createVideoResponse(cachedData, origin);
+    } catch {
+      // 预加载失败，继续正常请求
+      globalThis.preloadQueue?.delete(decodedUrl);
+    }
+  }
+
+  // 检查 KV 缓存（如果配置了）
   try {
-    const kv = await getKVBinding();
-    if (kv) {
-      const cacheKey = `segment:${url}`;
-      const cached = await kv.get(cacheKey, 'arrayBuffer');
-      if (cached && (cached as ArrayBuffer).byteLength > 0) {
-        return createVideoResponse(cached as ArrayBuffer);
-      }
+    const cacheKey = `segment:${url}`;
+    // @ts-ignore - KV 在 Cloudflare 环境中可用
+    const cached = await globalThis.KV?.get(cacheKey, 'arrayBuffer');
+    if (cached && cached.byteLength > 0) {
+      return createVideoResponse(cached, origin);
     }
   } catch {
+    // KV 不可用，继续正常请求
   }
 
+  let response: Response | null = null;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    const response = await fetch(decodedUrl, {
+    // 并行发起请求
+    const fetchPromise = fetch(decodedUrl, {
       headers: {
-        'User-Agent': 'AptvPlayer/1.4.10',
+        'User-Agent': ua,
         'Accept': '*/*',
-        'Accept-Encoding': 'identity',
+        'Accept-Encoding': 'identity', // 不压缩，避免解压延迟
       },
-      signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
+    // 超时控制
+    const timeoutPromise = new Promise<null>((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 15000);
+    });
 
-    if (!response.ok) {
+    response = await Promise.race([fetchPromise, timeoutPromise]) as Response | null;
+
+    if (!response || !response.ok) {
       return NextResponse.json({ error: 'Failed to fetch segment' }, { status: 500 });
     }
 
-    const contentLength = response.headers.get('content-length');
-    const isSmall = !contentLength || parseInt(contentLength) < MAX_CACHE_SIZE;
-
-    if (isSmall) {
-      const data = await response.arrayBuffer();
+    const data = await response.arrayBuffer();
+    
+    // 缓存小分片到 KV
+    if (data.byteLength < MAX_CACHE_SIZE) {
       try {
-        const kv = await getKVBinding();
-        if (kv) {
-          const cacheKey = `segment:${url}`;
-          kv.put(cacheKey, data, { expirationTtl: CACHE_TTL }).catch(() => {});
-        }
+        const cacheKey = `segment:${url}`;
+        // @ts-ignore
+        await globalThis.KV?.put(cacheKey, data, { expirationTtl: CACHE_TTL });
       } catch {
+        // KV 不可用，忽略
       }
-      return createVideoResponse(data);
     }
 
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': 'video/mp2t',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-        'CDN-Cache-Control': 'public, s-maxage=86400',
-      },
-    });
+    return createVideoResponse(data, origin);
 
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
-      return NextResponse.json({ error: 'Request timeout' }, { status: 504 });
-    }
+  } catch (error) {
+    console.error('Segment fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch segment' }, { status: 500 });
+  } finally {
+    if (response?.body) {
+      try {
+        response.body.cancel();
+      } catch {}
+    }
   }
 }
 
-function createVideoResponse(data: ArrayBuffer): Response {
-  return new Response(data, {
-    headers: {
-      'Content-Type': 'video/mp2t',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Accept-Ranges': 'bytes',
-      'Content-Length': data.byteLength.toString(),
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-      'CDN-Cache-Control': 'public, s-maxage=86400',
-    },
-  });
+function createVideoResponse(data: ArrayBuffer, origin = '*'): Response {
+  const headers = new Headers();
+  headers.set('Content-Type', 'video/mp2t');
+  headers.set('Access-Control-Allow-Origin', origin);
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Range, Origin, Accept');
+  headers.set('Accept-Ranges', 'bytes');
+  headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+  headers.set('Content-Length', data.byteLength.toString());
+  headers.set('Cache-Control', 'public, max-age=3600');
+  
+  return new Response(data, { headers });
+}
+
+// 预加载函数（内部使用）
+async function preloadSegment(url: string, source: string): Promise<void> {
+  const key = url;
+  if (globalThis.preloadQueue?.has(key)) return;
+  
+  const promise = fetch(url, {
+    headers: { 'User-Agent': 'AptvPlayer/1.4.10' }
+  }).then(r => r.arrayBuffer());
+  
+  globalThis.preloadQueue?.set(key, promise);
+  
+  // 限制队列大小
+  if (globalThis.preloadQueue && globalThis.preloadQueue.size > 10) {
+    const firstKey = globalThis.preloadQueue.keys().next().value;
+    if (firstKey) globalThis.preloadQueue.delete(firstKey);
+  }
 }

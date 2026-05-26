@@ -22,8 +22,8 @@ function VersionDisplay() {
       try {
         const status = await checkForUpdates();
         setUpdateStatus(status);
-      } catch (_) {
-        // do nothing
+      } catch (error) {
+        console.error('版本检查失败:', error);
       } finally {
         setIsChecking(false);
       }

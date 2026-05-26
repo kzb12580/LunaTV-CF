@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: '获取豆瓣数据失败', details: (error as Error).message },
+      { error: '获取豆瓣数据失败' },
       { status: 500 }
     );
   }

@@ -1,4 +1,5 @@
 export interface AdminConfig {
+  // TODO: 拼写错误，应为 ConfigSubscription。保留原名以兼容已存储数据
   ConfigSubscribtion: {
     URL: string;
     AutoUpdate: boolean;

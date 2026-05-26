@@ -200,90 +200,95 @@ const M3U8_PATTERN = /(https?:\/\/[^"'\s]+?\.m3u8)/g;
 export async function getDetailFromApi(
   apiSite: ApiSite,
   id: string
-): Promise<SearchResult> {
-  if (apiSite.detail) {
-    return handleSpecialSourceDetail(id, apiSite);
-  }
+): Promise<SearchResult | null> {
+  try {
+    if (apiSite.detail) {
+      return await handleSpecialSourceDetail(id, apiSite);
+    }
 
-  const detailUrl = `${apiSite.api}${API_CONFIG.detail.path}${id}`;
+    const detailUrl = `${apiSite.api}${API_CONFIG.detail.path}${id}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  const response = await fetch(detailUrl, {
-    headers: API_CONFIG.detail.headers,
-    signal: controller.signal,
-  });
+    const response = await fetch(detailUrl, {
+      headers: API_CONFIG.detail.headers,
+      signal: controller.signal,
+    });
 
-  clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    throw new Error(`详情请求失败: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`详情请求失败: ${response.status}`);
+    }
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (
-    !data ||
-    !data.list ||
-    !Array.isArray(data.list) ||
-    data.list.length === 0
-  ) {
-    throw new Error('获取到的详情内容无效');
-  }
+    if (
+      !data ||
+      !data.list ||
+      !Array.isArray(data.list) ||
+      data.list.length === 0
+    ) {
+      throw new Error('获取到的详情内容无效');
+    }
 
-  const videoDetail = data.list[0];
-  let episodes: string[] = [];
-  let titles: string[] = [];
+    const videoDetail = data.list[0];
+    let episodes: string[] = [];
+    let titles: string[] = [];
 
-  // 处理播放源拆分
-  if (videoDetail.vod_play_url) {
-    // 先用 $$$ 分割
-    const vod_play_url_array = videoDetail.vod_play_url.split('$$$');
-    // 分集之间#分割，标题和播放链接 $ 分割
-    vod_play_url_array.forEach((url: string) => {
-      const matchEpisodes: string[] = [];
-      const matchTitles: string[] = [];
-      const title_url_array = url.split('#');
-      title_url_array.forEach((title_url: string) => {
-        const episode_title_url = title_url.split('$');
-        if (
-          episode_title_url.length === 2 &&
-          episode_title_url[1].endsWith('.m3u8')
-        ) {
-          matchTitles.push(episode_title_url[0]);
-          matchEpisodes.push(episode_title_url[1]);
+    // 处理播放源拆分
+    if (videoDetail.vod_play_url) {
+      // 先用 $$$ 分割
+      const vod_play_url_array = videoDetail.vod_play_url.split('$$$');
+      // 分集之间#分割，标题和播放链接 $ 分割
+      vod_play_url_array.forEach((url: string) => {
+        const matchEpisodes: string[] = [];
+        const matchTitles: string[] = [];
+        const title_url_array = url.split('#');
+        title_url_array.forEach((title_url: string) => {
+          const episode_title_url = title_url.split('$');
+          if (
+            episode_title_url.length === 2 &&
+            episode_title_url[1].endsWith('.m3u8')
+          ) {
+            matchTitles.push(episode_title_url[0]);
+            matchEpisodes.push(episode_title_url[1]);
+          }
+        });
+        if (matchEpisodes.length > episodes.length) {
+          episodes = matchEpisodes;
+          titles = matchTitles;
         }
       });
-      if (matchEpisodes.length > episodes.length) {
-        episodes = matchEpisodes;
-        titles = matchTitles;
-      }
-    });
-  }
+    }
 
-  // 如果播放源为空，则尝试从内容中解析 m3u8
-  if (episodes.length === 0 && videoDetail.vod_content) {
-    const matches = videoDetail.vod_content.match(M3U8_PATTERN) || [];
-    episodes = matches.map((link: string) => link.replace(/^\$/, ''));
-  }
+    // 如果播放源为空，则尝试从内容中解析 m3u8
+    if (episodes.length === 0 && videoDetail.vod_content) {
+      const matches = videoDetail.vod_content.match(M3U8_PATTERN) || [];
+      episodes = matches.map((link: string) => link.replace(/^\$/, ''));
+    }
 
-  return {
-    id: id.toString(),
-    title: videoDetail.vod_name,
-    poster: videoDetail.vod_pic,
-    episodes,
-    episodes_titles: titles,
-    source: apiSite.key,
-    source_name: apiSite.name,
-    class: videoDetail.vod_class,
-    year: videoDetail.vod_year
-      ? videoDetail.vod_year.match(/\d{4}/)?.[0] || ''
-      : 'unknown',
-    desc: cleanHtmlTags(videoDetail.vod_content),
-    type_name: videoDetail.type_name,
-    douban_id: videoDetail.vod_douban_id,
-  };
+    return {
+      id: id.toString(),
+      title: videoDetail.vod_name,
+      poster: videoDetail.vod_pic,
+      episodes,
+      episodes_titles: titles,
+      source: apiSite.key,
+      source_name: apiSite.name,
+      class: videoDetail.vod_class,
+      year: videoDetail.vod_year
+        ? videoDetail.vod_year.match(/\d{4}/)?.[0] || ''
+        : 'unknown',
+      desc: cleanHtmlTags(videoDetail.vod_content),
+      type_name: videoDetail.type_name,
+      douban_id: videoDetail.vod_douban_id,
+    };
+  } catch (error) {
+    console.error(`getDetailFromApi failed for ${apiSite.key}/${id}:`, error);
+    return null;
+  }
 }
 
 async function handleSpecialSourceDetail(

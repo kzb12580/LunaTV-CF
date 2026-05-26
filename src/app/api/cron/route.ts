@@ -2,37 +2,43 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getConfig, refineConfig, saveConfig } from '@/lib/config';
+import { getConfig, refineConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 import { fetchVideoDetail } from '@/lib/fetchVideoDetail';
-
+import { refreshLiveChannels } from '@/lib/live';
 import { SearchResult } from '@/lib/types';
 
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
+  // 认证检查：验证请求头中的 cron secret
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
-    const token = request.nextUrl.searchParams.get('token');
-    if (token !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
   }
 
   try {
-    await cronJob();
+
+    cronJob();
 
     return NextResponse.json({
       success: true,
-      message: 'Cron job triggered',
+      message: 'Cron job executed successfully',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    console.error('Cron job failed:', error);
+
     return NextResponse.json(
       {
         success: false,
         message: 'Cron job failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
       },
       { status: 500 }
@@ -42,12 +48,36 @@ export async function GET(request: NextRequest) {
 
 async function cronJob() {
   await refreshConfig();
+  await refreshAllLiveChannels();
   await refreshRecordAndFavorites();
 }
 
+async function refreshAllLiveChannels() {
+  const config = await getConfig();
+
+  // 并发刷新所有启用的直播源
+  const refreshPromises = (config.LiveConfig || [])
+    .filter(liveInfo => !liveInfo.disabled)
+    .map(async (liveInfo) => {
+      try {
+        const nums = await refreshLiveChannels(liveInfo);
+        liveInfo.channelNumber = nums;
+      } catch (error) {
+        console.error(`刷新直播源失败 [${liveInfo.name || liveInfo.key}]:`, error);
+        liveInfo.channelNumber = 0;
+      }
+    });
+
+  // 等待所有刷新任务完成
+  await Promise.all(refreshPromises);
+
+  // 保存配置
+  await db.saveAdminConfig(config);
+}
 
 async function refreshConfig() {
   let config = await getConfig();
+  // TODO: ConfigSubscribtion 拼写错误(应为 Subscription)，保留原名兼容已存储数据
   if (config && config.ConfigSubscribtion && config.ConfigSubscribtion.URL && config.ConfigSubscribtion.AutoUpdate) {
     try {
       const response = await fetch(config.ConfigSubscribtion.URL);
@@ -58,15 +88,26 @@ async function refreshConfig() {
 
       const configContent = await response.text();
 
+      // 对 configContent 进行 base58 解码，失败则当作原始 JSON
+      let decodedContent: string;
       try {
-        JSON.parse(configContent);
+        const bs58 = (await import('bs58')).default;
+        const decodedBytes = bs58.decode(configContent);
+        decodedContent = new TextDecoder().decode(decodedBytes);
+      } catch (decodeError) {
+        console.warn('Base58 解码失败，尝试作为原始 JSON 处理');
+        decodedContent = configContent;
+      }
+
+      try {
+        JSON.parse(decodedContent);
       } catch (e) {
         throw new Error('配置文件格式错误，请检查 JSON 语法');
       }
-      config.ConfigFile = configContent;
+      config.ConfigFile = decodedContent;
       config.ConfigSubscribtion.LastCheck = new Date().toISOString();
       config = refineConfig(config);
-      await saveConfig(config);
+      await db.saveAdminConfig(config);
     } catch (e) {
       console.error('刷新配置失败:', e);
     }
@@ -81,8 +122,10 @@ async function refreshRecordAndFavorites() {
     if (process.env.USERNAME && !users.includes(process.env.USERNAME)) {
       users.push(process.env.USERNAME);
     }
+    // 函数级缓存：key 为 `${source}+${id}`，值为 Promise<VideoDetail | null>
     const detailCache = new Map<string, Promise<SearchResult | null>>();
 
+    // 获取详情 Promise（带缓存和错误处理）
     const getDetail = async (
       source: string,
       id: string,
@@ -110,6 +153,7 @@ async function refreshRecordAndFavorites() {
       return promise;
     };
 
+    // 并发限制工具
     const runWithConcurrency = async <T>(
       tasks: (() => Promise<T>)[],
       concurrency: number
@@ -126,9 +170,11 @@ async function refreshRecordAndFavorites() {
       return results;
     };
 
+    // 处理单个用户的播放记录和收藏
     const processUser = async (user: string) => {
       console.log(`开始处理用户: ${user}`);
 
+      // 播放记录
       try {
         const playRecords = await db.getAllPlayRecords(user);
         const entries = Object.entries(playRecords);
@@ -180,8 +226,12 @@ async function refreshRecordAndFavorites() {
         console.error(`获取用户播放记录失败 (${user}):`, err);
       }
 
+      // 收藏
       try {
         let favorites = await db.getAllFavorites(user);
+        favorites = Object.fromEntries(
+          Object.entries(favorites).filter(([_, fav]) => fav.origin !== 'live')
+        );
         const favEntries = Object.entries(favorites);
         const totalFavorites = favEntries.length;
         let processedFavorites = 0;
@@ -229,6 +279,7 @@ async function refreshRecordAndFavorites() {
       }
     };
 
+    // 用户间并发处理（限制 3 个用户同时处理）
     const userTasks = users.map((user) => () => processUser(user));
     await runWithConcurrency(userTasks, 3);
 

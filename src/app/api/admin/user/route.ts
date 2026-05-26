@@ -386,7 +386,7 @@ export async function POST(request: NextRequest) {
             adminConfig.UserConfig.Tags.splice(groupIndex, 1);
 
             // 记录删除操作的影响
-            console.log(`删除用户组 "${groupName}"，影响用户: ${affectedUsers.length > 0 ? affectedUsers.join(', ') : '无'}`);
+            console.warn(`删除用户组 "${groupName}"，影响用户: ${affectedUsers.length > 0 ? affectedUsers.join(', ') : '无'}`);
 
             break;
           }
@@ -473,7 +473,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: '用户管理操作失败',
-        details: (error as Error).message,
       },
       { status: 500 }
     );

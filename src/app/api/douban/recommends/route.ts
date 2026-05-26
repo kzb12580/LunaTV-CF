@@ -92,7 +92,6 @@ export async function GET(request: NextRequest) {
   }
 
   const target = `${baseUrl}?${params.toString()}`;
-  console.log(target);
   try {
     const doubanData = await fetchDoubanData<DoubanRecommendApiResponse>(
       target
@@ -123,7 +122,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: '获取豆瓣数据失败', details: (error as Error).message },
+      { error: '获取豆瓣数据失败' },
       { status: 500 }
     );
   }

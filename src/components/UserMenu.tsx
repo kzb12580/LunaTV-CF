@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
+import { fetchAuthInfo } from '@/lib/auth';
 import { CURRENT_VERSION } from '@/lib/version';
 import { checkForUpdates, UpdateStatus } from '@/lib/version_check';
 
@@ -115,12 +115,14 @@ export const UserMenu: React.FC = () => {
   // 获取认证信息和存储类型
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const auth = getAuthInfoFromBrowserCookie();
-      setAuthInfo(auth);
-
-      const type =
-        (window as any).RUNTIME_CONFIG?.STORAGE_TYPE || 'localstorage';
-      setStorageType(type);
+      fetchAuthInfo().then((auth) => {
+        if (auth) {
+          setAuthInfo({ username: auth.username, role: auth.role });
+          if (auth.storageType) {
+            setStorageType(auth.storageType);
+          }
+        }
+      });
     }
   }, []);
 

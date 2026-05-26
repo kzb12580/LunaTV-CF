@@ -9,6 +9,18 @@ import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
 
+// SCAN-based helper to avoid blocking KEYS command (Upstash Redis)
+async function scanKeysUpstash(client: Redis, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = 0;
+  do {
+    const [nextCursor, foundKeys] = await client.scan(cursor, { match: pattern, count: 100 });
+    cursor = nextCursor;
+    keys.push(...(foundKeys as string[]));
+  } while (cursor !== 0);
+  return keys;
+}
+
 // 数据类型转换辅助函数
 function ensureString(value: any): string {
   return String(value);
@@ -348,7 +360,7 @@ export class UpstashRedisStorage implements IStorage {
 
     try {
       // 迁移播放记录：u:*:pr:* → u:username:pr (Hash)
-      const prKeys: string[] = await withRetry(() => this.client.keys('u:*:pr:*'));
+      const prKeys: string[] = await withRetry(() => scanKeysUpstash(this.client, 'u:*:pr:*'));
       if (prKeys.length > 0) {
         const oldPrKeys = prKeys.filter((k) => {
           const parts = k.split(':');
@@ -373,7 +385,7 @@ export class UpstashRedisStorage implements IStorage {
       }
 
       // 迁移收藏：u:*:fav:* → u:username:fav (Hash)
-      const favKeys: string[] = await withRetry(() => this.client.keys('u:*:fav:*'));
+      const favKeys: string[] = await withRetry(() => scanKeysUpstash(this.client, 'u:*:fav:*'));
       if (favKeys.length > 0) {
         const oldFavKeys = favKeys.filter((k) => {
           const parts = k.split(':');
@@ -398,7 +410,7 @@ export class UpstashRedisStorage implements IStorage {
       }
 
       // 迁移 skipConfig：u:*:skip:* → u:username:skip (Hash)
-      const skipKeys: string[] = await withRetry(() => this.client.keys('u:*:skip:*'));
+      const skipKeys: string[] = await withRetry(() => scanKeysUpstash(this.client, 'u:*:skip:*'));
       if (skipKeys.length > 0) {
         const oldSkipKeys = skipKeys.filter((k) => {
           const parts = k.split(':');
@@ -425,7 +437,7 @@ export class UpstashRedisStorage implements IStorage {
       // 迁移用户列表：从 KEYS u:*:pwd 构建 sys:users Set
       const userSetExists = await withRetry(() => this.client.exists(this.usersSetKey()));
       if (!userSetExists) {
-        const pwdKeys: string[] = await withRetry(() => this.client.keys('u:*:pwd'));
+        const pwdKeys: string[] = await withRetry(() => scanKeysUpstash(this.client, 'u:*:pwd'));
         const userNames = pwdKeys
           .map((k) => {
             const match = k.match(/^u:(.+?):pwd$/);
@@ -458,7 +470,7 @@ export class UpstashRedisStorage implements IStorage {
     console.log('开始密码迁移：明文 → 加盐哈希...');
 
     try {
-      const pwdKeys: string[] = await withRetry(() => this.client.keys('u:*:pwd'));
+      const pwdKeys: string[] = await withRetry(() => scanKeysUpstash(this.client, 'u:*:pwd'));
       let count = 0;
 
       for (const key of pwdKeys) {

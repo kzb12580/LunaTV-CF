@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
 
 import { db } from '@/lib/db';
-import { getKVBinding } from '@/lib/env';
 
 import { AdminConfig } from './admin.types';
 
@@ -56,10 +55,6 @@ export const API_CONFIG = {
 
 // 在模块加载时根据环境决定配置来源
 let cachedConfig: AdminConfig;
-
-// KV 缓存 key
-const CONFIG_KV_KEY = 'app:config';
-const CONFIG_KV_TTL = 60; // 60秒（config 变更后很快生效）
 
 
 // 从配置文件补充管理员配置
@@ -204,6 +199,7 @@ async function getInitConfig(configFile: string, subConfig: {
   }
   const adminConfig: AdminConfig = {
     ConfigFile: configFile,
+    // TODO: ConfigSubscribtion 拼写错误(应为 Subscription)，保留原名兼容已存储数据
     ConfigSubscribtion: subConfig,
     SiteConfig: {
       SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'MoonTV',
@@ -230,6 +226,7 @@ async function getInitConfig(configFile: string, subConfig: {
     },
     SourceConfig: [],
     CustomCategories: [],
+    LiveConfig: [],
   };
 
   // 补充用户信息
@@ -274,35 +271,33 @@ async function getInitConfig(configFile: string, subConfig: {
     });
   });
 
+  // 从配置文件中补充直播源信息
+  Object.entries(cfgFile.lives || []).forEach(([key, live]) => {
+    if (!adminConfig.LiveConfig) {
+      adminConfig.LiveConfig = [];
+    }
+    adminConfig.LiveConfig.push({
+      key,
+      name: live.name,
+      url: live.url,
+      ua: live.ua,
+      epg: live.epg,
+      channelNumber: 0,
+      from: 'config',
+      disabled: false,
+    });
+  });
+
   return adminConfig;
 }
 
-// 轻量获取 UA 配置（proxy 路由专用，不查 D1）
-export function getCachedUA(): string {
-  return 'AptvPlayer/1.4.10';
-}
-
 export async function getConfig(): Promise<AdminConfig> {
-  // L1: 内存缓存（同 isolate 内命中）
+  // 直接使用内存缓存
   if (cachedConfig) {
     return cachedConfig;
   }
 
-  // L2: KV 缓存（跨 isolate 命中，~10ms）
-  try {
-    const kv = await getKVBinding();
-    if (kv) {
-      const kvCached = await kv.get(CONFIG_KV_KEY, { type: 'json' });
-      if (kvCached) {
-        cachedConfig = kvCached as AdminConfig;
-        return cachedConfig;
-      }
-    }
-  } catch {
-    // 非 CF 环境或 KV 不可用
-  }
-
-  // L3: D1 数据库（~50-100ms）
+  // 读 db
   let adminConfig: AdminConfig | null = null;
   try {
     adminConfig = await db.getAdminConfig();
@@ -316,30 +311,8 @@ export async function getConfig(): Promise<AdminConfig> {
   }
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
-
-  // 写入 KV 缓存（不写回 D1 读路径，避免写放大）
-  try {
-    const kv = await getKVBinding();
-    if (kv) {
-      kv.put(CONFIG_KV_KEY, JSON.stringify(cachedConfig), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
-    }
-  } catch {
-    // 非 CF 环境
-  }
-
+  await db.saveAdminConfig(cachedConfig);
   return cachedConfig;
-}
-
-// 显式保存配置（仅在管理员修改配置时调用）
-export async function saveConfig(config: AdminConfig) {
-  cachedConfig = config;
-  await db.saveAdminConfig(config);
-  try {
-    const kv = await getKVBinding();
-    if (kv) {
-      kv.put(CONFIG_KV_KEY, JSON.stringify(config), { expirationTtl: CONFIG_KV_TTL }).catch(() => {});
-    }
-  } catch {}
 }
 
 export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
@@ -356,6 +329,10 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   if (!adminConfig.CustomCategories || !Array.isArray(adminConfig.CustomCategories)) {
     adminConfig.CustomCategories = [];
   }
+  if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
+    adminConfig.LiveConfig = [];
+  }
+
   // 站长变更自检
   const ownerUser = process.env.USERNAME;
 
@@ -406,6 +383,16 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     return true;
   });
 
+  // 直播源去重
+  const seenLiveKeys = new Set<string>();
+  adminConfig.LiveConfig = adminConfig.LiveConfig.filter((live) => {
+    if (seenLiveKeys.has(live.key)) {
+      return false;
+    }
+    seenLiveKeys.add(live.key);
+    return true;
+  });
+
   return adminConfig;
 }
 
@@ -420,7 +407,8 @@ export async function resetConfig() {
     originConfig = {} as AdminConfig;
   }
   const adminConfig = await getInitConfig(originConfig.ConfigFile, originConfig.ConfigSubscribtion);
-  await saveConfig(adminConfig);
+  cachedConfig = adminConfig;
+  await db.saveAdminConfig(adminConfig);
 
   return;
 }

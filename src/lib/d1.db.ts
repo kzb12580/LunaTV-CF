@@ -562,13 +562,22 @@ export class D1Storage implements IStorage {
       // 获取所有用户
       const users = await this.getAllUsers();
       
-      // 删除所有用户数据
+      // 使用 batch 事务删除所有用户数据和管理员配置
+      const statements: D1PreparedStatement[] = [];
       for (const username of users) {
-        await this.deleteUser(username);
+        statements.push(
+          db.prepare('DELETE FROM users WHERE username = ?').bind(username),
+          db.prepare('DELETE FROM play_records WHERE username = ?').bind(username),
+          db.prepare('DELETE FROM favorites WHERE username = ?').bind(username),
+          db.prepare('DELETE FROM search_history WHERE username = ?').bind(username),
+          db.prepare('DELETE FROM skip_configs WHERE username = ?').bind(username),
+        );
       }
-      
       // 删除管理员配置
-      await db.prepare('DELETE FROM admin_config').run();
+      statements.push(db.prepare('DELETE FROM admin_config'));
+      
+      // 批量执行，D1 batch 保证原子性
+      await db.batch(statements);
       
       console.log('All data cleared');
     } catch (err) {

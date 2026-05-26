@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: '获取视频详情失败' },
       { status: 500 }
     );
   }

@@ -3162,6 +3162,7 @@ const ConfigFileComponent = ({ config, refreshConfig }: { config: AdminConfig | 
     if (config?.ConfigFile) {
       setConfigContent(config.ConfigFile);
     }
+    // TODO: ConfigSubscribtion 拼写错误(应为 Subscription)，保留原名兼容已存储数据
     if (config?.ConfigSubscribtion) {
       setSubscriptionUrl(config.ConfigSubscribtion.URL);
       setAutoUpdate(config.ConfigSubscribtion.AutoUpdate);
