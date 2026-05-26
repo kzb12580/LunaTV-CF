@@ -12,12 +12,12 @@ const SEARCH_HISTORY_LIMIT = 20;
 // SCAN-based helper to avoid blocking KEYS command (Upstash Redis)
 async function scanKeysUpstash(client: Redis, pattern: string): Promise<string[]> {
   const keys: string[] = [];
-  let cursor = 0;
+  let cursor = '0';
   do {
-    const [nextCursor, foundKeys] = await client.scan(cursor, { match: pattern, count: 100 });
-    cursor = nextCursor;
+    const [nextCursor, foundKeys] = await client.scan(Number(cursor), { match: pattern, count: 100 });
+    cursor = String(nextCursor);
     keys.push(...(foundKeys as string[]));
-  } while (cursor !== 0);
+  } while (cursor !== '0');
   return keys;
 }
 
