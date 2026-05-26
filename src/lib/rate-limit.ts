@@ -15,11 +15,11 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 // 定期清理过期条目（防止内存泄漏）
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
+  rateLimitStore.forEach((entry, key) => {
     if (now > entry.resetTime) {
       rateLimitStore.delete(key);
     }
-  }
+  });
 }, 60000); // 每分钟清理一次
 
 /**
