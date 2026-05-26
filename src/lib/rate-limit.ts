@@ -12,15 +12,19 @@ interface RateLimitEntry {
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
-// 定期清理过期条目（防止内存泄漏）
-setInterval(() => {
+// 惰性清理过期条目（兼容 Edge Runtime，避免顶层 setInterval）
+function cleanupExpiredEntries(): void {
   const now = Date.now();
-  rateLimitStore.forEach((entry, key) => {
-    if (now > entry.resetTime) {
+  rateLimitStore.forEach((_entry, key) => {
+    const entry = rateLimitStore.get(key);
+    if (entry && now > entry.resetTime) {
       rateLimitStore.delete(key);
     }
   });
-}, 60000); // 每分钟清理一次
+}
+
+// 超过此条目数时触发清理
+const CLEANUP_THRESHOLD = 100;
 
 /**
  * 检查速率限制
@@ -34,6 +38,11 @@ export function checkRateLimit(
   maxRequests: number = 5,
   windowMs: number = 15 * 60 * 1000 // 默认15分钟
 ): { limited: boolean; retryAfter?: number } {
+  // 条目过多时触发惰性清理
+  if (rateLimitStore.size > CLEANUP_THRESHOLD) {
+    cleanupExpiredEntries();
+  }
+
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
