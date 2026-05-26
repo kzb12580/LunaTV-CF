@@ -1,9 +1,18 @@
 /* eslint-disable no-console */
 
-import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
+
+// Edge Runtime 兼容的安全比较
+function safeCompareEdge(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -41,9 +50,9 @@ export async function middleware(request: NextRequest) {
     if (!authInfo.password || !process.env.PASSWORD) {
       return handleAuthFailure(request, pathname);
     }
-    const storedPw = Buffer.from(process.env.PASSWORD, 'utf-8');
-    const inputPw = Buffer.from(authInfo.password, 'utf-8');
-    if (storedPw.length !== inputPw.length || !timingSafeEqual(storedPw, inputPw)) {
+    const storedPw = process.env.PASSWORD;
+    const inputPw = authInfo.password;
+    if (!safeCompareEdge(storedPw, inputPw)) {
       return handleAuthFailure(request, pathname);
     }
     return NextResponse.next();

@@ -1,5 +1,4 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
-import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
@@ -8,12 +7,14 @@ import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export const runtime = 'edge';
 
-// 安全比较两个字符串（防止时序攻击）
+// 安全比较两个字符串（防止时序攻击）— Edge Runtime 兼容
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
-  const bufA = Buffer.from(a, 'utf-8');
-  const bufB = Buffer.from(b, 'utf-8');
-  return timingSafeEqual(bufA, bufB);
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 // 读取存储类型环境变量，默认 localstorage
