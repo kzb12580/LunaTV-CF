@@ -311,7 +311,11 @@ export async function getConfig(): Promise<AdminConfig> {
   }
   adminConfig = configSelfCheck(adminConfig);
   cachedConfig = adminConfig;
-  await db.saveAdminConfig(cachedConfig);
+  try {
+    await db.saveAdminConfig(cachedConfig);
+  } catch (e) {
+    // Build time or DB unavailable — skip persist
+  }
   return cachedConfig;
 }
 
@@ -408,7 +412,11 @@ export async function resetConfig() {
   }
   const adminConfig = await getInitConfig(originConfig.ConfigFile, originConfig.ConfigSubscribtion);
   cachedConfig = adminConfig;
-  await db.saveAdminConfig(adminConfig);
+  try {
+    await db.saveAdminConfig(adminConfig);
+  } catch (e) {
+    // Build time or DB unavailable
+  }
 
   return;
 }
@@ -474,5 +482,9 @@ export async function setCachedConfig(config: AdminConfig) {
 
 export async function saveConfig(config: AdminConfig) {
   cachedConfig = config;
-  await db.saveAdminConfig(config);
+  try {
+    await db.saveAdminConfig(config);
+  } catch (e) {
+    // Build time or DB unavailable — skip persist
+  }
 }
