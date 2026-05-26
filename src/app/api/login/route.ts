@@ -223,15 +223,8 @@ export async function POST(req: NextRequest) {
       console.error('数据库验证失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('登录接口异常', error);
-    // 临时调试：返回详细错误信息（定位后删除）
-    return NextResponse.json({
-      error: '服务器错误',
-      debug: error?.message || String(error),
-      stack: error?.stack?.substring(0, 300),
-      storageType: STORAGE_TYPE,
-      hasPassword: !!process.env.PASSWORD,
-    }, { status: 500 });
+    return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }
 }
