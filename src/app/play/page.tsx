@@ -685,18 +685,37 @@ function PlayPageClient() {
         const data = await response.json();
 
         // 处理搜索结果，根据规则过滤
-        const results = data.results.filter(
+        // 先尝试精确匹配，无结果则降级为模糊包含匹配
+        const normalizedTitle = videoTitleRef.current.replaceAll(' ', '').toLowerCase();
+        const typeFiltered = data.results.filter(
           (result: SearchResult) =>
-            result.title.replaceAll(' ', '').toLowerCase() ===
-            videoTitleRef.current.replaceAll(' ', '').toLowerCase() &&
-            (videoYearRef.current
-              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
-              : true) &&
             (searchType
               ? (searchType === 'tv' && result.episodes.length > 1) ||
               (searchType === 'movie' && result.episodes.length === 1)
               : true)
         );
+
+        // 第一轮：精确匹配标题 + 年份
+        let results = typeFiltered.filter(
+          (result: SearchResult) =>
+            result.title.replaceAll(' ', '').toLowerCase() === normalizedTitle &&
+            (videoYearRef.current
+              ? result.year.toLowerCase() === videoYearRef.current.toLowerCase()
+              : true)
+        );
+
+        // 第二轮：如果精确匹配无结果，降级为模糊包含匹配
+        if (results.length === 0) {
+          results = typeFiltered.filter(
+            (result: SearchResult) => {
+              const normalizedResult = result.title.replaceAll(' ', '').toLowerCase();
+              // 标题互相包含即视为匹配
+              const titleMatch = normalizedResult.includes(normalizedTitle) ||
+                normalizedTitle.includes(normalizedResult);
+              return titleMatch;
+            }
+          );
+        }
         setAvailableSources(results);
         return results;
       } catch (err) {
