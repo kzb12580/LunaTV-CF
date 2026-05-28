@@ -1275,6 +1275,13 @@ function PlayPageClient() {
     }
     console.log(videoUrl);
 
+    // ★ 检测原生 APP 桥接 — 直接调用 ExoPlayer 播放，不走 Artplayer
+    if (typeof window !== 'undefined' && (window as any).LunaNative?.isNative) {
+      const title = `${videoTitle} - 第${currentEpisodeIndex + 1}集`;
+      (window as any).LunaNative.playVideo(videoUrl, title);
+      return;
+    }
+
     // 检测是否为WebKit浏览器
     const isWebkit =
       typeof window !== 'undefined' &&
