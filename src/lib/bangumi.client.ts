@@ -30,7 +30,18 @@ export async function GetBangumiCalendarData(): Promise<BangumiCalendarData[]> {
   const data = await response.json();
   const filteredData = data.map((item: BangumiCalendarData) => ({
     ...item,
-    items: item.items.filter(bangumiItem => bangumiItem.images)
+    items: item.items
+      .filter((bangumiItem) => bangumiItem.images)
+      .map((bangumiItem) => ({
+        ...bangumiItem,
+        images: {
+          large: bangumiItem.images.large?.replace('http://', 'https://') || '',
+          common: bangumiItem.images.common?.replace('http://', 'https://') || '',
+          medium: bangumiItem.images.medium?.replace('http://', 'https://') || '',
+          small: bangumiItem.images.small?.replace('http://', 'https://') || '',
+          grid: bangumiItem.images.grid?.replace('http://', 'https://') || '',
+        },
+      })),
   }));
 
   return filteredData;
