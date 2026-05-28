@@ -19,9 +19,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    // 根据图片域名选择合适的 Referer
+    const referer = imageUrl.includes('bgm.tv')
+      ? 'https://bgm.tv/'
+      : 'https://movie.douban.com/';
     const imageResponse = await fetch(imageUrl, {
       headers: {
-        Referer: 'https://movie.douban.com/',
+        Referer: referer,
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
       },

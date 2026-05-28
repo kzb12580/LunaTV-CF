@@ -15,6 +15,7 @@ const ALLOWED_DOMAINS = [
   'infura-ipfs.io',
   'ipfs.io',
   'cloudflare-ipfs.com',
+  'lain.bgm.tv',
 ];
 
 // 允许代理的 URL 模式（正则）
@@ -23,6 +24,7 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /^https?:\/\/.*\.douban\.com\/.*$/i,
   /^https?:\/\/.*\.infura-ipfs\.io\/.*$/i,
   /^https?:\/\/.*\.cloudflare-ipfs\.com\/.*$/i,
+  /^https?:\/\/lain\.bgm\.tv\/.*$/i,
 ];
 
 // 禁止的内网/保留 IP 范围

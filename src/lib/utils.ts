@@ -34,6 +34,12 @@ function getDoubanImageProxyConfig(): {
 export function processImageUrl(originalUrl: string): string {
   if (!originalUrl) return originalUrl;
 
+  // Bangumi 图片：强制走服务端代理（lain.bgm.tv 在国内部分网络不可达）
+  if (originalUrl.includes('lain.bgm.tv')) {
+    const httpsUrl = originalUrl.replace('http://', 'https://');
+    return `/api/image-proxy?url=${encodeURIComponent(httpsUrl)}`;
+  }
+
   // 仅处理豆瓣图片代理
   if (!originalUrl.includes('doubanio.com')) {
     return originalUrl;
