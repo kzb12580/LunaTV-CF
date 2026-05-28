@@ -555,7 +555,12 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                               className='w-full h-full object-cover'
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
+                                if (!target.dataset.proxied && source.poster) {
+                                  target.dataset.proxied = 'true';
+                                  target.src = `/api/image-proxy?url=${encodeURIComponent(source.poster)}`;
+                                } else {
+                                  target.style.display = 'none';
+                                }
                               }}
                             />
                           )}

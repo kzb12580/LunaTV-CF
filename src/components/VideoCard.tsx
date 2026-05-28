@@ -555,13 +555,18 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
             loading='lazy'
             onLoadingComplete={() => setIsLoading(true)}
             onError={(e) => {
-              // 图片加载失败时的重试机制
+              // 图片加载失败：先重试原URL，再走CF代理兜底
               const img = e.target as HTMLImageElement;
               if (!img.dataset.retried) {
                 img.dataset.retried = 'true';
                 setTimeout(() => {
                   img.src = processImageUrl(actualPoster);
                 }, 2000);
+              } else if (!img.dataset.proxied && actualPoster) {
+                img.dataset.proxied = 'true';
+                setTimeout(() => {
+                  img.src = `/api/image-proxy?url=${encodeURIComponent(actualPoster)}`;
+                }, 1000);
               }
             }}
             style={{
