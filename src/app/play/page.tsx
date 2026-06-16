@@ -1277,9 +1277,20 @@ function PlayPageClient() {
 
     // ★ 检测原生 APP 桥接 — 直接调用 ExoPlayer 播放，不走 Artplayer
     if (typeof window !== 'undefined' && (window as any).LunaNative?.isNative) {
-      const title = `${videoTitle} - 第${currentEpisodeIndex + 1}集`;
-      (window as any).LunaNative.playVideo(videoUrl, title);
-      return;
+      try {
+        const title = `${videoTitle} - 第${currentEpisodeIndex + 1}集`;
+        // HTTP→HTTPS：Android 9+ 默认禁止明文 HTTP
+        let nativeUrl = videoUrl;
+        if (nativeUrl.startsWith('http://')) {
+          nativeUrl = 'https://' + nativeUrl.slice(7);
+          console.log('[LunaNative] HTTP→HTTPS:', nativeUrl);
+        }
+        (window as any).LunaNative.playVideo(nativeUrl, title);
+        return; // 成功调用原生播放器，跳过 Artplayer
+      } catch (err) {
+        console.error('[LunaNative] 桥接调用失败，回退 Artplayer:', err);
+        // fallback: 不 return，继续走下面的 Artplayer 逻辑
+      }
     }
 
     // 检测是否为WebKit浏览器
